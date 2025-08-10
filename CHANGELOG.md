@@ -8,13 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- (Future features will be listed here)
+- Documentation KDoc pour `GameViewModel`, `GameScreen`, `Player`, et `GameManager`.
+- Tests unitaires pour `GameViewModel` (`GameViewModelTest.kt`) couvrant l'état initial, `startGame`, et les scénarios de `rollDice` (scorable, bust) avec `FakeDiceRoller`.
+- Tests unitaires pour la data class `Player` (`PlayerTest.kt`).
+- Test unitaire `rollDice_afterBust_returnsInvalidAction` à `TurnManagerTest.kt`.
+- Dépendances de test `kotlinx-coroutines-test`, `turbine` et `lifecycle-viewmodel-compose` au `build.gradle.kts`.
+- Fonction `@Preview` pour `GameScreen.kt`.
+- `GameViewModelFactory` dans `GameViewModel.kt`.
 
 ### Changed
-- (Future changes will be listed here)
+- Refactorisation de `GameViewModel` pour permettre l'injection de `GameManager` (amélioration de la testabilité).
+- La classe `Player` a été déplacée de `GameManager.kt` vers son propre fichier `Player.kt`.
+- `GameManager.kt` utilise maintenant la classe `Player` externe.
+- La gestion de l'état du joueur actuel est centralisée (suppression de `isCurrentPlayer` de la classe `Player`).
+- Revue et confirmation de la KDoc et des tests pour `ScoreCalculator.kt` et `TurnManager.kt`.
+- `GameViewModelTest.kt` utilise `TestDispatcher` et `advanceUntilIdle()` pour une meilleure gestion des coroutines.
 
 ### Fixed
-- (Future bug fixes will be listed here)
+- Correction d'une expression `when` non exhaustive dans `GameViewModel` pour gérer `GameEvent.PlayerTurnStarted`.
+- L'avertissement `ViewModelConstructorInComposable` dans la preview de `GameScreen.kt` est supprimé avec `@Suppress`.
+
+### Removed
+- Propriété `isCurrentPlayer` de la data class `Player`.
+- Définition imbriquée de la classe `Player` depuis `GameManager.kt`.
 
 ## [0.2.0] - 2025-08-10
 

@@ -2,10 +2,11 @@ package fr.antoinehory.cinqmille.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
-
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val LofiCyberBackground = Color(0xFF100F25)
+val LofiCyberSurface = Color(0xFF1A1934)
+val LofiCyberPrimary = Color(0xFF00C8FF) // Néon Bleu
+val LofiCyberSecondary = Color(0xFFFF00C8) // Néon Magenta
+val LofiCyberAccent = Color(0xFFFFFF00) // Néon Jaune
+val LofiCyberOnPrimary = Color(0xFFFFFFFF) // Texte sur les boutons néon
+val LofiCyberOnSurface = Color(0xFFE0E0E0) // Texte sur le fond sombre
+val LofiCyberError = Color(0xFFFF4444)
