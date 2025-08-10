@@ -1,0 +1,43 @@
+# Android Studio / IntelliJ
+*.iml
+/.idea/
+
+# Kotlin
+/.kotlin/
+
+# Gradle
+/.gradle/
+.gradletasknamecache
+# gradle-wrapper.jar.lock # Uncomment if this causes issues
+
+# Build
+/build/
+/captures/
+*.apk
+*.aab
+*.ap_
+*.aar
+
+# Local configuration
+/local.properties
+
+# Log files
+*.log
+
+# Keystore files (IMPORTANT: Never commit keystore files)
+*.keystore
+*.jks
+
+# Google Services (uncomment if you use it and want to ignore it)
+# google-services.json
+
+# Profiling
+*.hprof
+
+# Native Build
+/.externalNativeBuild/
+/.cxx/
+
+# OS generated files
+.DS_Store
+# Thumbs.db # For Windows
