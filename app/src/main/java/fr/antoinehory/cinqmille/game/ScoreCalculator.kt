@@ -166,4 +166,22 @@ object ScoreCalculator {
         }
         return 0 // No Full found
     }
+
+    /**
+     * Checks if a given dice roll can score any points.
+     * This function does not calculate the actual score, but only determines
+     * if there's at least one scorable combination or individual die.
+     *
+     * @param dice The list of dice values to check.
+     * @return `true` if the roll can score points, `false` otherwise.
+     */
+    fun canScore(dice: List<Int>): Boolean {
+        if (dice.isEmpty()) {
+            return false
+        }
+        // A simple way to check if any score is possible is to actually calculate it.
+        // If the score is greater than 0, then it's possible to score.
+        // This leverages the existing calculateScore logic which handles all combinations.
+        return calculateScore(dice) > 0
+    }
 }

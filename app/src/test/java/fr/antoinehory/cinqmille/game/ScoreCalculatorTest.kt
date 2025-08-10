@@ -1,6 +1,8 @@
 package fr.antoinehory.cinqmille.game
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse // Added for canScore
+import org.junit.Assert.assertTrue // Added for canScore
 import org.junit.Test
 
 /**
@@ -8,6 +10,7 @@ import org.junit.Test
  */
 class ScoreCalculatorTest {
 
+    // --- calculateScore Tests Start (existing tests) ---
     @Test
     fun `calculateScore with empty dice list should return 0`() {
         val dice = emptyList<Int>()
@@ -191,7 +194,52 @@ class ScoreCalculatorTest {
         val score = ScoreCalculator.calculateScore(dice)
         assertEquals(ScoreCalculator.SCORE_STRAIGHT_1_TO_5, score)
     }
+    // --- calculateScore Tests End ---
 
-    // We will add more tests here for other brelans, straights, fulls, five-of-a-kind,
-    // and complex combinations ensuring dice are not scored twice.
+    // --- Tests for canScore() ---
+    @Test
+    fun `canScore with empty dice list should return false`() {
+        assertFalse(ScoreCalculator.canScore(emptyList()))
+    }
+
+    @Test
+    fun `canScore with single 1 should return true`() {
+        assertTrue(ScoreCalculator.canScore(listOf(1)))
+    }
+
+    @Test
+    fun `canScore with single 5 should return true`() {
+        assertTrue(ScoreCalculator.canScore(listOf(5)))
+    }
+
+    @Test
+    fun `canScore with non-scoring dice should return false`() {
+        assertFalse(ScoreCalculator.canScore(listOf(2, 3, 4, 6)))
+    }
+
+    @Test
+    fun `canScore with three 2s should return true`() {
+        assertTrue(ScoreCalculator.canScore(listOf(2, 2, 2)))
+    }
+
+    @Test
+    fun `canScore with straight 1-2-3-4-5 should return true`() {
+        assertTrue(ScoreCalculator.canScore(listOf(1, 2, 3, 4, 5)))
+    }
+    
+    @Test
+    fun `canScore with five 1s should return true`() {
+        assertTrue(ScoreCalculator.canScore(listOf(1, 1, 1, 1, 1)))
+    }
+
+    @Test
+    fun `canScore with complex scoring hand should return true`() {
+        assertTrue(ScoreCalculator.canScore(listOf(1, 1, 1, 5, 2))) // Brelan of 1 + 5
+    }
+
+    @Test
+    fun `canScore with complex non-scoring hand should return false`() {
+        assertFalse(ScoreCalculator.canScore(listOf(2, 2, 3, 4, 6))) // No 1s, 5s, no brelans of value
+    }
+    // --- canScore() Tests End ---
 }
