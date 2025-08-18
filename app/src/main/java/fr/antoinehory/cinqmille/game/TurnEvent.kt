@@ -1,9 +1,8 @@
-package fr.antoinehory.cinqmille.game // Assure-toi que c'est le package de ton fichier TurnEvent.kt
+package fr.antoinehory.cinqmille.game
 
-// Il est possible que DiceRoll soit défini dans GameTurn.kt ou TurnManager.kt
-// S'il n'est pas accessible, il faudra peut-être l'importer ou le déplacer aussi.
-// Normalement, s'il est dans le même package, pas de souci.
-// typealias DiceRoll = List<Int> // Au cas où, pour rappel
+// DiceRoll typealias is assumed to be accessible.
+// If DiceRoll is in another file like GameTurn.kt and not auto-imported:
+// import fr.antoinehory.cinqmille.game.DiceRoll // Or the correct path if it's defined elsewhere
 
 /**
  * Represents events that occur within a single player's turn, managed by [TurnManager].
@@ -21,13 +20,17 @@ sealed class TurnEvent {
      * Indicates that the player has made a valid selection of dice that scores points.
      * @param scoreFromSelection The score obtained from this specific selection.
      * @param newTurnTotalScore The total accumulated score for the current turn *after* this selection.
-     * @param diceForNextPotentialRoll The number of dice available for the player to roll again.
-     * @param canRollAgain True if the player has the option to roll again, false otherwise.
+     * @param diceSelected The actual dice values that were selected by the player to achieve this score.
+     * @param remainingDiceInHand The dice that were *not* part of this selection and remain from the original roll.
+     *                            These are the dice the player can choose to roll again if `canRollAgain` is true.
+     *                            If empty and `canRollAgain` is true, it implies the player can roll all new dice (e.g., 5 dice).
+     * @param canRollAgain True if the player has the option to roll again (either the `remainingDiceInHand` or a full set of new dice if all scored).
      */
     data class Scored(
         val scoreFromSelection: Int,
         val newTurnTotalScore: Int,
-        val diceForNextPotentialRoll: Int,
+        val diceSelected: DiceRoll,
+        val remainingDiceInHand: DiceRoll,
         val canRollAgain: Boolean
     ) : TurnEvent()
 

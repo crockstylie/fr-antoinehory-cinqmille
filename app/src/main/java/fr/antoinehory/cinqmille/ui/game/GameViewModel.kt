@@ -65,15 +65,15 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
     }
 
     /**
-     * Handles the action of selecting dice after a roll.
-     * The [GameManager] is called to process the selection, and the UI state is updated.
-     *
-     * @param selectedIndices A list of indices representing the dice selected by the user
-     *                        from the current roll.
+     * Confirms the current visual selection of dice and sends it to the GameManager.
+     * The selected dice are derived from the `selectedDiceVisual` state.
      */
-    fun selectDice(selectedIndices: List<Int>) {
+    fun selectDice() { // Parameter removed
         viewModelScope.launch {
-            val gameEvent = gameManager.currentTurnSelectDice(selectedIndices)
+            val finalSelectedIndices = _uiState.value.selectedDiceVisual
+                .mapIndexedNotNull { index, isSelected -> if (isSelected) index else null }
+
+            val gameEvent = gameManager.currentTurnSelectDice(finalSelectedIndices)
             updateUiStateFromGameEvent(gameEvent)
         }
     }
@@ -93,13 +93,30 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
     }
 
     /**
+     * Toggles the selection state of a die at the given index.
+     * This updates the `selectedDiceVisual` state for UI feedback.
+     *
+     * @param index The 0-based index of the die in the `currentDiceRoll` to toggle.
+     */
+    fun toggleDieSelection(index: Int) {
+        val currentVisualSelection = _uiState.value.selectedDiceVisual
+        val currentDice = _uiState.value.currentDiceRoll
+
+        if (index >= 0 && index < currentDice.size && index < currentVisualSelection.size) {
+            val newVisualSelection = currentVisualSelection.toMutableList()
+            newVisualSelection[index] = !newVisualSelection[index]
+            _uiState.update { it.copy(selectedDiceVisual = newVisualSelection) }
+        }
+    }
+
+    /**
      * Updates the [GameUiState] based on a [GameEvent] received from the [GameManager].
      * This function is central to keeping the UI synchronized with the game's backend logic.
      *
      * @param gameEvent The event from the [GameManager] to process.
      */
     private fun updateUiStateFromGameEvent(gameEvent: GameEvent) {
-        val currentState = _uiState.value
+        val currentState = _uiState.value // Keep for getNextPlayerId if needed for a brief moment
         when (gameEvent) {
             is GameEvent.GameStarted -> {
                 _uiState.update {
@@ -111,7 +128,8 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
                         isBankButtonEnabled = false,
                         currentDiceRoll = emptyList(),
                         currentTurnScore = 0,
-                        selectedDiceIndices = emptyList()
+                        selectedDiceIndices = emptyList(),
+                        selectedDiceVisual = emptyList()
                     )
                 }
             }
@@ -125,6 +143,7 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
                         isRollButtonEnabled = true,
                         isBankButtonEnabled = false,
                         selectedDiceIndices = emptyList(),
+                        selectedDiceVisual = emptyList(),
                         players = mapPlayersToUiState(gameManager.allPlayers, gameEvent.player.id)
                     )
                 }
@@ -134,39 +153,46 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
                     is TurnEvent.Rolled -> {
                         _uiState.update {
                             it.copy(
-                                currentDiceRoll = turnEvent.dice, // Dés affichés
+                                currentDiceRoll = turnEvent.dice,
                                 currentMessage = if (turnEvent.canPlayerMakeAnyScore) "Sélectionnez vos dés." else "Busté ! Tour terminé.",
-                                isRollButtonEnabled = turnEvent.canPlayerMakeAnyScore,
-                                isBankButtonEnabled = false,
-                                selectedDiceIndices = emptyList()
+                                isRollButtonEnabled = turnEvent.canPlayerMakeAnyScore, 
+                                isBankButtonEnabled = false, 
+                                selectedDiceIndices = emptyList(), 
+                                selectedDiceVisual = List(turnEvent.dice.size) { false } 
                             )
                         }
                     }
-                    is TurnEvent.Scored -> {
+                    is TurnEvent.Scored -> { // MODIFIED BLOCK
                         _uiState.update {
+                            val newDiceRollToShow = turnEvent.remainingDiceInHand
                             it.copy(
                                 currentTurnScore = turnEvent.newTurnTotalScore,
-                                currentMessage = "Score ce tour : ${turnEvent.newTurnTotalScore}. Relancez ou banquez.",
+                                currentMessage = "Score ce tour : ${turnEvent.newTurnTotalScore}. Dés marqués: ${turnEvent.diceSelected.joinToString()}. Relancez ou banquez.",
                                 isRollButtonEnabled = turnEvent.canRollAgain,
-                                isBankButtonEnabled = true,
-                                selectedDiceIndices = emptyList() // Réinitialiser après sélection
+                                isBankButtonEnabled = true, 
+                                currentDiceRoll = newDiceRollToShow, // MODIFIED
+                                selectedDiceIndices = emptyList(),   
+                                selectedDiceVisual = List(newDiceRollToShow.size) { false } // MODIFIED
                             )
                         }
                     }
-                    is TurnEvent.Busted -> { // Busted pendant la sélection de dés
+                    is TurnEvent.Busted -> { 
                         _uiState.update {
                             it.copy(
-                                currentMessage = "Sélection bustée ! Votre tour est terminé.",
-                                isRollButtonEnabled = false, // Sera géré par PlayerBusted pour le prochain tour
-                                isBankButtonEnabled = false,
-                                selectedDiceIndices = emptyList()
-                                // currentDiceRoll est conservé pour montrer le bust
+                                currentMessage = "Sélection bustée ! Votre tour est terminé.", 
+                                isRollButtonEnabled = false, 
+                                isBankButtonEnabled = false, 
+                                selectedDiceIndices = emptyList(), 
+                                selectedDiceVisual = emptyList() 
                             )
                         }
                     }
-                    is TurnEvent.TurnEndedBanked -> { // Normalement géré par PlayerScored/Opened/Won
+                    is TurnEvent.TurnEndedBanked -> { 
                         _uiState.update {
-                            it.copy(currentMessage = "Score banqué (via TurnEndedBanked). Vérifier flux d'événements.")
+                            it.copy(
+                                currentMessage = "Score banqué (via TurnEndedBanked). Préparez le prochain joueur.",
+                                selectedDiceVisual = emptyList() 
+                            )
                         }
                     }
                     is TurnEvent.InvalidAction -> {
@@ -187,7 +213,8 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
                         currentTurnScore = 0,
                         isRollButtonEnabled = true,
                         isBankButtonEnabled = false,
-                        selectedDiceIndices = emptyList()
+                        selectedDiceIndices = emptyList(),
+                        selectedDiceVisual = emptyList()
                     )
                 }
             }
@@ -202,7 +229,8 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
                         currentTurnScore = 0,
                         isRollButtonEnabled = true,
                         isBankButtonEnabled = false,
-                        selectedDiceIndices = emptyList()
+                        selectedDiceIndices = emptyList(),
+                        selectedDiceVisual = emptyList()
                     )
                 }
             }
@@ -217,22 +245,24 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
                         currentTurnScore = 0,
                         isRollButtonEnabled = true,
                         isBankButtonEnabled = false,
-                        selectedDiceIndices = emptyList()
+                        selectedDiceIndices = emptyList(),
+                        selectedDiceVisual = emptyList()
                     )
                 }
             }
-            is GameEvent.PlayerBusted -> { // Le tour du joueur est terminé par un bust
+            is GameEvent.PlayerBusted -> { 
                 val nextPlayerId = getNextPlayerId(currentState.currentPlayerId)
                 _uiState.update {
                     it.copy(
                         players = mapPlayersToUiState(gameManager.allPlayers, nextPlayerId),
                         currentPlayerId = nextPlayerId,
                         currentMessage = "Joueur ${gameEvent.player.id} a busté ! Au tour du Joueur $nextPlayerId.",
-                        currentDiceRoll = emptyList(), // Vider les dés pour le prochain joueur
+                        currentDiceRoll = emptyList(),
                         currentTurnScore = 0,
-                        isRollButtonEnabled = true, // Pour le prochain joueur
+                        isRollButtonEnabled = true,
                         isBankButtonEnabled = false,
-                        selectedDiceIndices = emptyList()
+                        selectedDiceIndices = emptyList(),
+                        selectedDiceVisual = emptyList()
                     )
                 }
             }
@@ -245,7 +275,8 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
                         isRollButtonEnabled = false,
                         isBankButtonEnabled = false,
                         currentDiceRoll = emptyList(),
-                        selectedDiceIndices = emptyList()
+                        selectedDiceIndices = emptyList(),
+                        selectedDiceVisual = emptyList()
                     )
                 }
             }
@@ -257,10 +288,6 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
         }
     }
 
-    /**
-     * Maps a list of [Player] domain objects to a list of [PlayerUiState] objects
-     * suitable for display in the UI.
-     */
     private fun mapPlayersToUiState(players: List<Player>, currentPlayingId: Int?): List<PlayerUiState> {
         return players.map { player ->
             PlayerUiState(
@@ -272,27 +299,16 @@ class GameViewModel(private val gameManager: GameManager) : ViewModel() {
         }
     }
 
-    /**
-     * Helper function to determine the ID of the next player.
-     */
     private fun getNextPlayerId(currentId: Int?): Int? {
-        if (currentId == null) return null
+        if (currentId == null) return null 
         val players = gameManager.allPlayers
-        if (players.isEmpty()) return null
+        if (players.isEmpty()) return null 
         val currentIndex = players.indexOfFirst { it.id == currentId }
-        if (currentIndex == -1) return null
+        if (currentIndex == -1) return null 
         return players[(currentIndex + 1) % players.size].id
     }
 }
 
-/**
- * ViewModel Factory for creating [GameViewModel] instances, especially when it needs
- * a non-default constructor (e.g., for injecting dependencies like GameManager).
- * This is useful if you are not using a DI framework like Hilt and need to pass dependencies
- * to the ViewModel, for example, in tests.
- *
- * @param gameManager The [GameManager] instance to be used by the [GameViewModel].
- */
 @Suppress("UNCHECKED_CAST")
 class GameViewModelFactory(private val gameManager: GameManager) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

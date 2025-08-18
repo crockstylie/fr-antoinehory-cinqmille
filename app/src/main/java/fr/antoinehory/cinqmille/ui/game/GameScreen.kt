@@ -1,17 +1,21 @@
 package fr.antoinehory.cinqmille.ui.game
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color // Needed for Color.Transparent
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,16 +60,18 @@ fun GameScreen(gameViewModel: GameViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
 
             // Display the current dice roll.
-            // TODO: Enhance dice display (e.g., actual dice images, selection visuals).
+            // TODO: Enhance dice display (e.g., actual dice images).
             Row {
                 uiState.currentDiceRoll.forEachIndexed { index, dieValue ->
-                    // Basic text display for dice.
-                    // Needs to be enhanced for selection.
+                    val isSelected = uiState.selectedDiceVisual.getOrElse(index) { false }
                     Text(
                         text = "[$dieValue]",
-                        modifier = Modifier.padding(4.dp),
-                        fontSize = 24.sp
-                        // TODO: Add onClick to select/deselect dice using 'index'
+                        modifier = Modifier
+                            .clickable { gameViewModel.toggleDieSelection(index) }
+                            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                            .padding(8.dp),
+                        fontSize = 24.sp,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -80,19 +86,11 @@ fun GameScreen(gameViewModel: GameViewModel) {
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            // TODO: Implement a proper UI mechanism for selecting dice.
-            // The current selectedDiceIndices in UiState should be populated by user interaction with dice.
             Button(
-                onClick = {
-                    // For now, this uses a pre-selected list from UiState.
-                    // This list should be updated by tapping on the dice visuals.
-                    gameViewModel.selectDice(uiState.selectedDiceIndices)
-                },
-                // Enable this button if dice are rolled and no score has been made this turn yet,
-                // or if dice are selectable based on game rules.
-                enabled = uiState.currentDiceRoll.isNotEmpty() // && uiState.currentTurnScore == 0 // Example condition
+                onClick = { gameViewModel.selectDice() },
+                enabled = uiState.currentDiceRoll.isNotEmpty() && uiState.selectedDiceVisual.any { it }
             ) {
-                Text("Valider sélection") // Or "Garder les dés"
+                Text("Valider sélection")
             }
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -104,10 +102,21 @@ fun GameScreen(gameViewModel: GameViewModel) {
             }
 
         } else {
-            // Display "New Game" button if no game is currently active (e.g., after a win or on first launch).
-            // TODO: Allow selection of number of players.
-            Button(onClick = { gameViewModel.startGame(1) }) {
-                Text("Nouvelle Partie (1 Joueur)")
+            // Display "New Game" options if no game is currently active.
+            Text("Choisissez le nombre de joueurs :", fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = { gameViewModel.startGame(1) },
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text("1 Joueur")
+                }
+                Button(onClick = { gameViewModel.startGame(2) }) {
+                    Text("2 Joueurs")
+                }
             }
         }
     }
@@ -121,28 +130,32 @@ fun GameScreen(gameViewModel: GameViewModel) {
  */
 @Preview(showBackground = true)
 @Composable
-@Suppress("ViewModelConstructorInComposable") // Ajout de cette ligne pour supprimer l'avertissement
+@Suppress("ViewModelConstructorInComposable")
 fun GameScreenPreview() {
-    // For preview, we instantiate a GameManager and then the ViewModel.
-    // In a real app, this ViewModel would typically be provided by `by viewModels()`.
     val previewGameManager = GameManager(DefaultDiceRoller())
-    val previewViewModel = GameViewModel(previewGameManager) // L'avertissement est ici
+    val previewViewModel = GameViewModel(previewGameManager)
 
-    // Optionally, start a game to see a more complete UI state in the preview
-    // previewViewModel.startGame(2) // Uncomment to see an active game state
+    // Example: Simulate a dice roll and selection for preview
+    // To make this work, GameViewModel would need a way to set a specific UiState for preview,
+    // or you'd call its methods and rely on coroutine dispatchers if using viewModelScope.
+    // For a simple preview, you might construct GameUiState directly if GameScreen accepted it.
+    // previewViewModel.startGame(1) // Start a game
+    // Manually setting uiState for preview is tricky as _uiState is private.
+    // A better approach for complex previews is to have a @Preview GameScreen variant
+    // that accepts GameUiState directly.
+    //
+    // val sampleUiState = GameUiState(
+    //     currentPlayerId = 1,
+    //     currentMessage = "Preview: Joueur 1, sélectionnez vos dés.",
+    //     currentDiceRoll = listOf(1, 5, 3, 5, 2),
+    //     selectedDiceVisual = listOf(false, true, false, true, false), // e.g. two 5s selected
+    //     isRollButtonEnabled = true,
+    //     players = listOf(PlayerUiState(1,0,false,true))
+    // )
 
-    // Simulate a dice roll for preview if desired
-    // previewViewModel.uiState.value = previewViewModel.uiState.value.copy(currentDiceRoll = listOf(1,2,3,4,5)) // Note: _uiState est private
-
-    // Pour simuler un état, il faudrait soit rendre _uiState accessible (non recommandé)
-    // soit avoir une méthode dans le ViewModel pour définir un état de test,
-    // soit construire un GameUiState manuellement si GameScreen l'acceptait.
-
-    // Exemple de simulation d'état si le ViewModel avait une méthode de "setup" pour le preview :
-    // previewViewModel.setPreviewState(GameUiState(currentMessage = "Preview Mode", players = listOf(PlayerUiState(1, 1000, true, true))))
-
-
-    fr.antoinehory.cinqmille.ui.theme.CinqMilleTheme { // Assuming this is your app's theme
+    fr.antoinehory.cinqmille.ui.theme.CinqMilleTheme {
         GameScreen(gameViewModel = previewViewModel)
+        // GameScreen(uiState = sampleUiState, onAction = {}) // If GameScreen was refactored for preview
     }
 }
+

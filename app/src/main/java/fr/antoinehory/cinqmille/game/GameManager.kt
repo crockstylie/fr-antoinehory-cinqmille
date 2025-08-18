@@ -1,9 +1,9 @@
 package fr.antoinehory.cinqmille.game
 
-// La data class Player(val id: Int, ...) est SUPPRIMÉE d'ici.
-// Elle se trouve maintenant dans son propre fichier Player.kt dans le même package.
-// Si d'autres classes comme DiceRoller, ScoreCalculator, TurnManager sont dans d'autres packages,
-// des imports seraient nécessaires. Ici, on suppose qu'elles sont accessibles (même package ou importées).
+// Assurez-vous que Player, DiceRoller, ScoreCalculator (si encore utilisé ailleurs), GameRules sont importés ou accessibles
+// import fr.antoinehory.cinqmille.game.Player // Exemple
+// import fr.antoinehory.cinqmille.game.DiceRoller // Exemple
+// import fr.antoinehory.cinqmille.game.GameRules // Exemple
 
 /**
  * Manages the overall game flow, player states, and turn transitions for the Cinq Mille game.
@@ -21,12 +21,12 @@ package fr.antoinehory.cinqmille.game
  */
 class GameManager(private val diceRoller: DiceRoller) {
 
-    private val players = mutableListOf<Player>() // Utilise Player depuis fr.antoinehory.cinqmille.game.Player
+    private val players = mutableListOf<Player>()
     private var currentPlayerIndex: Int = -1
-    private var turnManager: TurnManager = TurnManager(ScoreCalculator, diceRoller)
+    private lateinit var turnManager: TurnManager // MODIFIÉ: lateinit
 
     /** The minimum score a player must achieve in a single turn to "open" their score. */
-    val MIN_SCORE_TO_OPEN = 750
+    val MIN_SCORE_TO_OPEN = 750 // Pourrait venir de GameRules aussi
     /** The target score a player must reach or exceed to win the game. */
     val TARGET_SCORE_TO_WIN = 5000
 
@@ -59,12 +59,11 @@ class GameManager(private val diceRoller: DiceRoller) {
         }
         players.clear()
         for (i in 1..numberOfPlayers) {
-            // Player est maintenant la classe de Player.kt
-            players.add(Player(id = i))
+            players.add(Player(id = i)) // Assume Player constructor is (id: Int)
         }
         currentPlayerIndex = 0
         gameInProgress = true
-        prepareTurnForCurrentPlayer()
+        prepareTurnForCurrentPlayer() // Initialise turnManager pour le premier joueur
         return GameEvent.GameStarted(players.toList(), players[currentPlayerIndex])
     }
 
@@ -72,46 +71,50 @@ class GameManager(private val diceRoller: DiceRoller) {
      * Resets the [TurnManager] for the current player's turn.
      */
     private fun prepareTurnForCurrentPlayer() {
-        turnManager = TurnManager(ScoreCalculator, diceRoller)
-        // Notifier qu'un nouveau tour commence pour le joueur actuel
-        // Ceci est géré par la logique appelante qui peut émettre PlayerTurnStarted
-        // ou l'état du GameStarted le fait implicitement pour le premier joueur.
+        val player = currentPlayer
+        if (player == null) {
+            // Should not happen if game is in progress and players exist. Handle error or ensure state.
+            // For now, let's assume if this is called, currentPlayer is valid.
+            // Or, we could throw an IllegalStateException if player is null.
+            // As a safeguard during init, or if called at a wrong time:
+            if (!::turnManager.isInitialized && players.isNotEmpty()) {
+                turnManager = TurnManager(diceRoller, GameRules(openingScoreThreshold = MIN_SCORE_TO_OPEN), players[0].hasOpened) // MODIFIÉ
+            } else if (player != null) {
+                turnManager = TurnManager(diceRoller, GameRules(openingScoreThreshold = MIN_SCORE_TO_OPEN), player.hasOpened) // MODIFIÉ
+            }
+            // If player is null and turnManager was already initialized, it might keep state of last player.
+            // This logic assumes prepareTurnForCurrentPlayer is called when currentPlayer is definitively set.
+        } else {
+            turnManager = TurnManager(diceRoller, GameRules(openingScoreThreshold = MIN_SCORE_TO_OPEN), player.hasOpened) // MODIFIÉ
+        }
     }
 
     /**
      * Handles the current player's action to roll the dice.
      * Delegates to [TurnManager] to process the roll.
      *
-     * @return A [GameEvent] representing the outcome of the roll (e.g., [GameEvent.CurrentTurnUpdated]
-     *         with dice results, or [GameEvent.PlayerBusted] if the roll results in a bust that ends the turn).
-     *         Returns [GameEvent.InvalidGameAction] if the game is not in progress.
+     * @return A [GameEvent] representing the outcome of the roll.
      */
     fun currentTurnRollDice(): GameEvent {
-        if (!gameInProgress || currentPlayer == null) {
-            return GameEvent.InvalidGameAction("Game not started or no current player.")
+        if (!gameInProgress || currentPlayer == null || !::turnManager.isInitialized) {
+            return GameEvent.InvalidGameAction("Game not started or no current player/turn manager.")
         }
         val player = currentPlayer!! // Capture current player before potential turn change
-        val turnEvent = turnManager.startOrContinueRoll()
+        val turnEvent = turnManager.rollDice() // MODIFIÉ
 
         return when (turnEvent) {
-            is TurnEvent.Busted -> { // Busted on the first roll of the turn or a re-roll
-                // GameManager considère un bust du TurnManager comme la fin du tour du joueur.
-                val bustedPlayer = player // Le joueur qui a busté
+            is TurnEvent.Busted -> {
+                val bustedPlayer = player
                 moveToNextPlayer()
                 GameEvent.PlayerBusted(bustedPlayer)
             }
             is TurnEvent.Rolled -> {
-                // TODO: Detect instant win from turnEvent (e.g. 5 ones on first roll of turn)
-                // This logic might belong in TurnManager or here after TurnManager.Rolled
                 GameEvent.CurrentTurnUpdated(turnEvent)
             }
-            else -> {
-                // Pour les autres TurnEvents (Scored, InvalidAction, TurnEndedBanked)
-                // qui ne devraient pas être le résultat direct de startOrContinueRoll
-                // mais pourraient l'être si la logique de TurnManager est complexe.
-                // On les encapsule dans CurrentTurnUpdated pour que le ViewModel puisse les gérer.
-                GameEvent.CurrentTurnUpdated(turnEvent)
-            }
+            // rollDice() devrait seulement retourner Rolled ou Busted (ou InvalidAction, mais on le gère avant)
+            // Donc, pas besoin d'être exhaustif pour Scored, TurnEndedBanked ici.
+            // Si TurnManager.rollDice() peut retourner autre chose, il faudra l'ajouter.
+            else -> GameEvent.InvalidGameAction("Unexpected event from rollDice: ${turnEvent::class.simpleName}")
         }
     }
 
@@ -120,16 +123,14 @@ class GameManager(private val diceRoller: DiceRoller) {
      * Delegates to [TurnManager] to process the selection.
      *
      * @param selectedIndices The indices of the dice selected by the player from their current roll.
-     * @return A [GameEvent] representing the outcome of the selection (e.g., [GameEvent.CurrentTurnUpdated]
-     *         with new scores, or [GameEvent.PlayerBusted] if the selection results in a bust).
-     *         Returns [GameEvent.InvalidGameAction] if the game is not in progress.
+     * @return A [GameEvent] representing the outcome of the selection.
      */
     fun currentTurnSelectDice(selectedIndices: List<Int>): GameEvent {
-        if (!gameInProgress || currentPlayer == null) {
-            return GameEvent.InvalidGameAction("Game not started or no current player.")
+        if (!gameInProgress || currentPlayer == null || !::turnManager.isInitialized) {
+            return GameEvent.InvalidGameAction("Game not started or no current player/turn manager.")
         }
         val player = currentPlayer!!
-        val turnEvent = turnManager.processPlayerSelection(selectedIndices)
+        val turnEvent = turnManager.selectDice(selectedIndices) // MODIFIÉ
 
         return when (turnEvent) {
             is TurnEvent.Busted -> {
@@ -137,15 +138,13 @@ class GameManager(private val diceRoller: DiceRoller) {
                 moveToNextPlayer()
                 GameEvent.PlayerBusted(bustedPlayer)
             }
-            is TurnEvent.Scored, is TurnEvent.Rolled, is TurnEvent.InvalidAction -> {
-                // TODO: Detect instant win from turnEvent if selection completes a winning hand
+            is TurnEvent.Scored, is TurnEvent.InvalidAction -> { // InvalidAction peut venir de selectDice
                 GameEvent.CurrentTurnUpdated(turnEvent)
             }
-            is TurnEvent.TurnEndedBanked -> {
-                // This shouldn't happen from processPlayerSelection.
-                // It's an outcome of banking.
-                GameEvent.InvalidGameAction("Unexpected TurnEndedBanked from dice selection.")
-            }
+            // selectDice() retourne Scored, Busted, ou InvalidAction.
+            // Rolled ou TurnEndedBanked ne devraient pas arriver ici.
+            else -> GameEvent.InvalidGameAction("Unexpected event from selectDice: ${turnEvent::class.simpleName}")
+
         }
     }
 
@@ -153,26 +152,22 @@ class GameManager(private val diceRoller: DiceRoller) {
      * Handles the current player's action to bank their current turn score.
      * Updates the player's total score and checks for game-winning conditions.
      *
-     * @return A [GameEvent] representing the outcome (e.g., [GameEvent.PlayerScored],
-     *         [GameEvent.PlayerOpenedAndScored], [GameEvent.PlayerFailedToOpen], [GameEvent.PlayerWon],
-     *         or [GameEvent.PlayerBusted] if banking isn't possible and results in a bust).
-     *         Returns [GameEvent.InvalidGameAction] if the game is not in progress.
+     * @return A [GameEvent] representing the outcome.
      */
     fun currentTurnBankScore(): GameEvent {
-        if (!gameInProgress || currentPlayer == null) {
-            return GameEvent.InvalidGameAction("Game not started or no current player.")
+        if (!gameInProgress || currentPlayer == null || !::turnManager.isInitialized) {
+            return GameEvent.InvalidGameAction("Game not started or no current player/turn manager.")
         }
 
         val player = currentPlayer!!
-        val bankEventFromTurnManager = turnManager.playerBanksScore()
+        val bankEventFromTurnManager = turnManager.bankScore() // MODIFIÉ
 
         return when (bankEventFromTurnManager) {
             is TurnEvent.TurnEndedBanked -> {
                 val bankedScore = bankEventFromTurnManager.finalTurnScore
-                var playerEvent: GameEvent // To hold the specific event for the player
+                var playerEvent: GameEvent
 
-                // Update lastKnownTurnScore before totalScore for win condition accuracy
-                player.lastKnownTurnScore = bankedScore
+                player.lastKnownTurnScore = bankedScore // Pour référence
 
                 if (!player.hasOpened) {
                     if (bankedScore >= MIN_SCORE_TO_OPEN) {
@@ -180,40 +175,30 @@ class GameManager(private val diceRoller: DiceRoller) {
                         player.totalScore += bankedScore
                         playerEvent = GameEvent.PlayerOpenedAndScored(player, bankedScore, player.totalScore)
                     } else {
-                        // Score non suffisant pour ouvrir, le joueur perd son tour et son score de tour.
-                        playerEvent = GameEvent.PlayerFailedToOpen(player, bankedScore)
+                        // Score non suffisant pour ouvrir, le joueur perd son tour et son score de tour (bankedScore est 0 de TurnManager).
+                        playerEvent = GameEvent.PlayerFailedToOpen(player, bankedScore) // bankedScore sera 0 ici
                     }
                 } else { // Player has already opened
                     player.totalScore += bankedScore
                     playerEvent = GameEvent.PlayerScored(player, bankedScore, player.totalScore)
                 }
 
-                // Check for win condition only if the player successfully banked (opened or scored)
                 if ((player.hasOpened && playerEvent !is GameEvent.PlayerFailedToOpen) && player.totalScore >= TARGET_SCORE_TO_WIN) {
-                    gameInProgress = false // Game ends
-                    // PlayerWon event should use the score from player.lastKnownTurnScore if that's the rule,
-                    // or player.totalScore. GameManager's PlayerWon uses totalScore.
+                    gameInProgress = false
                     return GameEvent.PlayerWon(player, player.totalScore)
                 }
 
-                // If no win, move to next player (unless it was a failed open attempt, where the turn also ends)
                 moveToNextPlayer()
-                playerEvent // Return PlayerOpenedAndScored, PlayerScored, or PlayerFailedToOpen
+                playerEvent
             }
-            is TurnEvent.Busted -> { // Banking resulted in a bust (e.g., trying to bank 0 points after busting)
-                val bustedPlayer = player
-                moveToNextPlayer()
-                GameEvent.PlayerBusted(bustedPlayer)
+            is TurnEvent.InvalidAction -> { // Ex: trying to bank when not allowed (score 0, or not opened yet)
+                GameEvent.CurrentTurnUpdated(bankEventFromTurnManager) // Le tour ne se termine pas forcément ici.
             }
-            is TurnEvent.InvalidAction -> {
-                // Player tried to bank when not allowed (e.g. 0 points and not busted yet)
-                // The turn doesn't necessarily end here. Let ViewModel decide based on message.
-                GameEvent.CurrentTurnUpdated(bankEventFromTurnManager)
-            }
-            is TurnEvent.Rolled, is TurnEvent.Scored -> {
-                // These should not occur from playerBanksScore().
-                GameEvent.InvalidGameAction("Unexpected event type (${bankEventFromTurnManager::class.simpleName}) from banking action.")
-            }
+            // bankScore() ne devrait pas retourner Busted, Rolled, Scored.
+            // Si TurnManager.bankScore() peut retourner Busted (e.g. pour "busted by trying to bank 0 after a non-scoring selection"),
+            // il faudrait le gérer. Mais la logique actuelle de TurnManager retourne InvalidAction ou TurnEndedBanked(0).
+            else -> GameEvent.InvalidGameAction("Unexpected event from bankScore: ${bankEventFromTurnManager::class.simpleName}")
+
         }
     }
 
@@ -221,17 +206,12 @@ class GameManager(private val diceRoller: DiceRoller) {
      * Moves to the next player in the list.
      * If the game is not in progress, this method does nothing.
      * Prepares the [TurnManager] for the new player's turn.
-     * Note: This method itself does not emit a GameEvent for player turn started;
-     * that's typically handled by the calling context or the ViewModel reacting to the previous player's turn ending.
      */
     private fun moveToNextPlayer() {
         if (players.isEmpty() || !gameInProgress) {
             return
         }
         currentPlayerIndex = (currentPlayerIndex + 1) % players.size
-        prepareTurnForCurrentPlayer()
-        // Consider if a GameEvent.PlayerTurnStarted should be emitted here
-        // or if the ViewModel should infer this from the previous event.
-        // For now, ViewModel infers or reacts to specific end-of-turn events.
+        prepareTurnForCurrentPlayer() // Réinitialise turnManager pour le nouveau joueur
     }
 }
