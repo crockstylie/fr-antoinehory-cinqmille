@@ -1,41 +1,10 @@
 package fr.antoinehory.cinqmille.game
 
-import kotlin.random.Random
-
 /**
  * Represents the outcome of a dice roll.
  * It's a type alias for a list of integers, where each integer is the face value of a die.
  */
 typealias DiceRoll = List<Int>
-
-/**
- * Interface for a dice rolling mechanism.
- * This allows for different implementations, e.g., random or for testing.
- */
-interface DiceRoller {
-    /**
-     * Simulates rolling a specified number of dice.
-     *
-     * @param numberOfDice The number of dice to roll. Must be positive.
-     * @return A [DiceRoll] (List<Int>) representing the outcomes of the dice,
-     *         each value between 1 and 6 (inclusive).
-     *         Returns an empty list if numberOfDice is not positive.
-     */
-    fun roll(numberOfDice: Int): DiceRoll
-}
-
-/**
- * A standard dice roller that uses [kotlin.random.Random] to generate dice values.
- */
-class RandomDiceRoller : DiceRoller {
-    override fun roll(numberOfDice: Int): DiceRoll {
-        if (numberOfDice <= 0) {
-            return emptyList()
-        }
-        // Ensures values are between 1 and 6.
-        return List(numberOfDice) { Random.nextInt(1, 7) }
-    }
-}
 
 /**
  * Selects specific dice from a given roll based on their indices.
@@ -79,9 +48,3 @@ fun getRemainingDice(currentRoll: DiceRoll, indicesKept: List<Int>): DiceRoll {
 
     return currentRoll.filterIndexed { index, _ -> index !in keptIndicesSet }
 }
-
-
-// We can add more game turn related logic here later.
-// For example:
-// - Calculating score for the current turn segment (using ScoreCalculator and selectedDice)
-// - Determining if a player can roll again (e.g., all dice scored, or player chooses to continue)

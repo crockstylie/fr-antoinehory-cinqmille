@@ -1,24 +1,5 @@
 package fr.antoinehory.cinqmille.game
 
-// Représente les différents événements ou résultats possibles lors d'un tour de jeu.
-sealed class TurnEvent {
-    // Joueur a lancé les dés. 'dice' est le résultat, 'canPlayerMakeAnyScore' indique si ce lancer offre des points.
-    data class Rolled(val dice: DiceRoll, val canPlayerMakeAnyScore: Boolean) : TurnEvent()
-    // Joueur a marqué des points avec sa sélection.
-    data class Scored(
-        val scoreFromSelection: Int,          // Points de la sélection actuelle
-        val newTurnTotalScore: Int,           // Score total accumulé dans ce tour
-        val diceForNextPotentialRoll: Int,    // Nombre de dés pour le prochain lancer si le joueur continue
-        val canRollAgain: Boolean             // Indique si le joueur a la possibilité de relancer
-    ) : TurnEvent()
-    // Le joueur a "busté" (aucun point marqué sur un lancer ou sélection non marquante).
-    data class Busted(val finalTurnScore: Int = 0) : TurnEvent() // Le score d'un bust est toujours 0 pour le tour.
-    // Le joueur a décidé d'arrêter et de garder son score.
-    data class TurnEndedBanked(val finalTurnScore: Int) : TurnEvent()
-    // Une action invalide a été tentée.
-    data class InvalidAction(val message: String) : TurnEvent()
-}
-
 class TurnManager(
     private val scoreCalculator: ScoreCalculator,
     private val diceRoller: DiceRoller // DiceRoller injecté
