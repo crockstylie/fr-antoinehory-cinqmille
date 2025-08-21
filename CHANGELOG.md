@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Champ `scoredDiceMask` et constante `INITIAL_DICE_COUNT` à `GameUiState`.
 - Fichier `PlayerUiState.kt` pour la data class `PlayerUiState` (précédemment imbriquée ou implicite).
 - Fichier `GameUiState.kt` pour la data class `GameUiState` (précédemment imbriquée ou implicite).
+- Champ `previewSelectionScore` à `GameUiState` pour afficher le score de la sélection de dés en cours.
+- Paramètre `processRestOfTurnAutomatically` à `TurnManager.selectDice` pour distinguer la validation d'une sélection pour banque versus pour continuer le tour.
 
 ### Changed
 - Refactorisation de `GameViewModel` pour permettre l'injection de `GameManager` (amélioration de la testabilité).
@@ -30,11 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modification de la signature de `getNextPlayerId` dans `GameViewModel.kt` pour passer `playersList` en paramètre.
 - Utilisation de `GameUiState.INITIAL_DICE_COUNT` dans `GameScreen.kt` pour la cohérence.
 - Amélioration de la KDoc pour les fichiers de thème (`Color.kt`, `Theme.kt`, `Type.kt`).
+- `GameUiState.currentTurnScore` renommé en `accumulatedTurnScore` pour plus de clarté.
+- `GameScreen.kt` affiche désormais `accumulatedTurnScore + previewSelectionScore` pour le score du tour.
+- `GameViewModel.bankScore` transmet les dés sélectionnés au `GameManager`.
+- `GameManager.currentTurnBankScore` traite les dés sélectionnés avant de banquer, utilisant la nouvelle logique de `TurnManager.selectDice`.
+- Logique d'activation du bouton "Banquer" dans `GameViewModel.toggleDieSelection` affinée pour considérer le score d'ouverture et le score potentiel du tour.
 
 ### Fixed
 - Correction d'une expression `when` non exhaustive dans `GameViewModel` pour gérer `GameEvent.PlayerTurnStarted`.
 - L'avertissement `ViewModelConstructorInComposable` dans la preview de `GameScreen.kt` est supprimé avec `@Suppress("ViewModelConstructorCall")`.
 - Correction des erreurs de compilation liées aux références non résolues (`scoredDiceMask`, `INITIAL_DICE_COUNT`) dans `GameViewModel.kt` et `GameScreen.kt` suite à la mise à jour de `GameUiState`.
+- Le bouton "Banquer" s'active/se désactive correctement en fonction du score d'ouverture et du score de la sélection en cours.
+- Banquer une sélection avant l'ouverture avec un score insuffisant ne résulte plus en un "bust" incorrect mais en "PlayerFailedToOpen" ou une action invalide.
+- Clarification de la KDoc de `GameViewModel`.
+- `GameManager` et `TurnManager` gèrent plus finement les busts lors des sélections et des lancers.
 
 ### Removed
 - Propriété `isCurrentPlayer` de la data class `Player`.

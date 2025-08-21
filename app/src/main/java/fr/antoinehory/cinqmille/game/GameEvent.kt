@@ -56,7 +56,7 @@ sealed class GameEvent {
      * Their score for the current turn is lost.
      * @param player The player who busted.
      */
-    data class PlayerBusted(val player: Player) : GameEvent()
+    data class PlayerBusted(val player: Player, val diceAtBust: DiceRoll) : GameEvent()
 
     /**
      * Indicates that a player has won the game by reaching or exceeding the target score.

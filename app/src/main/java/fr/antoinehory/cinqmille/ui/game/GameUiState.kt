@@ -13,7 +13,8 @@ package fr.antoinehory.cinqmille.ui.game
  * @property currentPlayerId The ID of the player whose turn it currently is. Null if the game is not active.
  * @property currentMessage A message to display to the user (e.g., instructions, game events).
  * @property currentDiceRoll The list of dice values from the most recent roll. An empty list if no roll has occurred.
- * @property currentTurnScore The score accumulated by the current player within the current turn.
+ * @property accumulatedTurnScore The score accumulated by the current player from validated dice selections within the current turn.
+ * @property previewSelectionScore The potential score from the dice currently visually selected by the player, but not yet validated.
  * @property isRollButtonEnabled True if the "Roll Dice" button should be enabled, false otherwise.
  * @property isBankButtonEnabled True if the "Bank Score" button should be enabled, false otherwise.
  * @property selectedDiceIndices DEPRECATED. Use [selectedDiceVisual] for UI interaction.
@@ -28,7 +29,8 @@ data class GameUiState(
     val currentPlayerId: Int? = null,
     val currentMessage: String = "Bienvenue au Cinq Mille ! Choisissez le nombre de joueurs pour commencer.",
     val currentDiceRoll: List<Int> = emptyList(),
-    val currentTurnScore: Int = 0,
+    val accumulatedTurnScore: Int = 0, // RENAMED from currentTurnScore
+    val previewSelectionScore: Int = 0, // ADDED for live score preview
     val isRollButtonEnabled: Boolean = false,
     val isBankButtonEnabled: Boolean = false,
     @Deprecated(
@@ -37,8 +39,7 @@ data class GameUiState(
     )
     val selectedDiceIndices: List<Int> = emptyList(),
     val selectedDiceVisual: List<Boolean> = List(INITIAL_DICE_COUNT) { false },
-    val scoredDiceMask: List<Boolean> = List(INITIAL_DICE_COUNT) { false } // CHAMP AJOUTÉ et initialisé
-    // TODO: Ajouter d'autres états UI si nécessaire (par ex. pour l'animation des dés)
+    val scoredDiceMask: List<Boolean> = List(INITIAL_DICE_COUNT) { false }
 ) {
     companion object {
         /**
@@ -46,7 +47,7 @@ data class GameUiState(
          * This should be consistent with how dice are handled in the game logic and UI.
          * For Cinq Mille, this is typically 5.
          */
-        const val INITIAL_DICE_COUNT = 5 // CONSTANTE AJOUTÉE
+        const val INITIAL_DICE_COUNT = 5
     }
 }
 
@@ -59,4 +60,3 @@ data class GameUiState(
 //     val hasOpened: Boolean,
 //     val isCurrentPlayer: Boolean
 // )
-

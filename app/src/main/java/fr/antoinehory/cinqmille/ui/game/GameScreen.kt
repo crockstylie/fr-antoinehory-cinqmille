@@ -10,16 +10,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+// import androidx.compose.foundation.layout.width // Pas utilisé directement, mais ok
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+// import androidx.compose.material3.LocalContentColor // Pas utilisé directement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,43 +33,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-// import androidx.compose.ui.geometry.Size // Not directly used, Offset and CornerRadius are. Size is used by DrawScope.
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import fr.antoinehory.cinqmille.game.GameManager
-import fr.antoinehory.cinqmille.game.DefaultDiceRoller
+// Supposons que GameManager, DefaultDiceRoller ne sont pas directement utilisés ici, mais dans ViewModel
+// import fr.antoinehory.cinqmille.game.GameManager
+// import fr.antoinehory.cinqmille.game.DefaultDiceRoller
 import fr.antoinehory.cinqmille.ui.theme.CinqMilleTheme
-// Ensure GameUiState and PlayerUiState are imported if they are in a separate file
-// import fr.antoinehory.cinqmille.ui.game.GameUiState
-// import fr.antoinehory.cinqmille.ui.game.PlayerUiState
 
-
-/** Defines the corner size for UI elements to achieve a pixel art look. */
 val PixelArtCornerSize = 0.dp
-/** Shape used for neon-style buttons, based on [PixelArtCornerSize]. */
 val NeonButtonShape = RoundedCornerShape(PixelArtCornerSize)
-/** Shape used for neon-style frames, based on [PixelArtCornerSize]. */
 val NeonFrameShape = RoundedCornerShape(PixelArtCornerSize)
-
-/** Default size for a single die composable. */
 val DieSize: Dp = 48.dp
-/** Ratio of the die dot size relative to the die's overall size. */
 val DieDotSizeRatio = 0.18f
+val ActionButtonRowHeight: Dp = 80.dp
 
-// This constant is now defined in GameUiState.Companion as INITIAL_DICE_COUNT
-// const val INITIAL_DICE_DISPLAY_COUNT = 5
-
-/**
- * The main composable for the game screen.
- * It observes [GameUiState] from the [gameViewModel] and displays the game interface,
- * including player scores, current turn information, dice area, and action buttons.
- *
- * @param gameViewModel The ViewModel providing UI state and handling game actions.
- */
 @Composable
 fun GameScreen(gameViewModel: GameViewModel) {
     val uiState by gameViewModel.uiState.collectAsState()
@@ -99,24 +82,32 @@ fun GameScreen(gameViewModel: GameViewModel) {
             if (uiState.currentPlayerId != null) {
                 CurrentTurnInfo(
                     currentPlayerId = uiState.currentPlayerId,
-                    currentTurnScore = uiState.currentTurnScore,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    // MODIFIED: Pass both scores to CurrentTurnInfo
+                    accumulatedTurnScore = uiState.accumulatedTurnScore,
+                    previewSelectionScore = uiState.previewSelectionScore,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
 
                 DiceArea(
                     diceRoll = uiState.currentDiceRoll,
                     selectedDiceVisual = uiState.selectedDiceVisual,
-                    scoredDiceMask = uiState.scoredDiceMask, // This should resolve if GameUiState is correct
+                    scoredDiceMask = uiState.scoredDiceMask,
                     onDieClick = { index -> gameViewModel.toggleDieSelection(index) },
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
                 )
 
                 ActionButtons(
                     onRollDice = { gameViewModel.rollDice() },
                     isRollEnabled = uiState.isRollButtonEnabled,
                     onBankScore = { gameViewModel.bankScore() },
-                    isBankEnabled = uiState.isBankButtonEnabled
+                    isBankEnabled = uiState.isBankButtonEnabled,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(ActionButtonRowHeight)
                 )
+
             } else {
                 NewGameOptions(
                     onStartGame = { numPlayers -> gameViewModel.startGame(numPlayers) },
@@ -127,13 +118,6 @@ fun GameScreen(gameViewModel: GameViewModel) {
     }
 }
 
-/**
- * Displays the scores for all players in the game.
- * Highlights the current player.
- *
- * @param players The list of [PlayerUiState] to display.
- * @param modifier The [Modifier] to be applied to this composable.
- */
 @Composable
 fun PlayerScores(players: List<PlayerUiState>, modifier: Modifier = Modifier) {
     Surface(
@@ -164,15 +148,19 @@ fun PlayerScores(players: List<PlayerUiState>, modifier: Modifier = Modifier) {
 }
 
 /**
- * Displays information about the current turn, including the current player's ID
- * and their accumulated score for this turn.
- *
- * @param currentPlayerId The ID of the player whose turn it is, or null if no turn is active.
- * @param currentTurnScore The score accumulated by the current player in this turn.
- * @param modifier The [Modifier] to be applied to this composable.
+ * Displays information about the current turn.
+ * @param currentPlayerId The ID of the current player, or null.
+ * @param accumulatedTurnScore The score already banked or validated in the current turn.
+ * @param previewSelectionScore The potential score from the dice currently selected.
+ * @param modifier The [Modifier] for this composable.
  */
 @Composable
-fun CurrentTurnInfo(currentPlayerId: Int?, currentTurnScore: Int, modifier: Modifier = Modifier) {
+fun CurrentTurnInfo(
+    currentPlayerId: Int?,
+    accumulatedTurnScore: Int, // MODIFIED
+    previewSelectionScore: Int, // MODIFIED
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -181,25 +169,19 @@ fun CurrentTurnInfo(currentPlayerId: Int?, currentTurnScore: Int, modifier: Modi
             text = "JOUEUR ${currentPlayerId ?: "-"}",
             style = MaterialTheme.typography.titleLarge
         )
+        // MODIFIED: Display logic for accumulated + preview score
+        val scoreText = if (previewSelectionScore > 0) {
+            "$accumulatedTurnScore + $previewSelectionScore"
+        } else {
+            accumulatedTurnScore.toString()
+        }
         Text(
-            text = "TOUR: $currentTurnScore",
+            text = "TOUR: $scoreText",
             style = MaterialTheme.typography.bodyLarge
         )
     }
 }
 
-/**
- * Displays the area where dice are shown, either the current roll or placeholders.
- * Allows dice to be clicked to toggle their selection.
- *
- * @param diceRoll The list of face values for the currently rolled dice. Empty if no roll yet.
- * @param selectedDiceVisual A list indicating which dice are visually selected by the user.
- *                           Its size should correspond to the number of dice on display.
- * @param scoredDiceMask A list indicating which dice have already scored in the current turn segment
- *                       and cannot be selected again. Its size should correspond to the number of dice on display.
- * @param onDieClick Callback invoked when a die is clicked, passing its index.
- * @param modifier The [Modifier] to be applied to this composable.
- */
 @Composable
 fun DiceArea(
     diceRoll: List<Int>,
@@ -214,17 +196,16 @@ fun DiceArea(
                 BorderStroke(2.dp, MaterialTheme.colorScheme.tertiary),
                 shape = NeonFrameShape
             )
-            .padding(16.dp)
-            .height(DieSize + 8.dp),
+            .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val displayCount = GameUiState.INITIAL_DICE_COUNT
             if (diceRoll.isEmpty()) {
-                // Use GameUiState.INITIAL_DICE_COUNT for consistency
-                repeat(GameUiState.INITIAL_DICE_COUNT) { index ->
+                repeat(displayCount) { index ->
                     SingleDie(
                         value = 0,
                         isSelected = selectedDiceVisual.getOrElse(index) { false },
@@ -233,31 +214,91 @@ fun DiceArea(
                     )
                 }
             } else {
-                diceRoll.forEachIndexed { index, dieValue ->
-                    val isSelected = selectedDiceVisual.getOrElse(index) { false }
-                    val isScored = scoredDiceMask.getOrElse(index) { false }
+                val currentDiceToDisplay = diceRoll.take(displayCount)
+                currentDiceToDisplay.forEachIndexed { index, dieValue ->
                     SingleDie(
                         value = dieValue,
-                        isSelected = isSelected,
-                        isScored = isScored,
+                        isSelected = selectedDiceVisual.getOrElse(index) { false },
+                        isScored = scoredDiceMask.getOrElse(index) { false },
                         onClick = { onDieClick(index) }
                     )
+                }
+                if (currentDiceToDisplay.size < displayCount) {
+                    repeat(displayCount - currentDiceToDisplay.size) { idxOffset ->
+                        val actualIndex = currentDiceToDisplay.size + idxOffset
+                        SingleDie(
+                            value = 0,
+                            isSelected = selectedDiceVisual.getOrElse(actualIndex) { false },
+                            isScored = scoredDiceMask.getOrElse(actualIndex) { false },
+                            onClick = { onDieClick(actualIndex) }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-/**
- * Displays a single die with its face value, selection state, and scored state.
- * Handles click events for selection.
- *
- * @param value The face value of the die (1-6). A value of 0 typically indicates a placeholder.
- * @param isSelected True if the die is currently visually selected by the user.
- * @param isScored True if the die has already been used to score points in the current turn segment.
- *                 Scored dice are typically not clickable and may appear differently.
- * @param onClick Callback invoked when the die is clicked.
- */
+@Composable
+fun ActionButtons(
+    onRollDice: () -> Unit,
+    isRollEnabled: Boolean,
+    onBankScore: () -> Unit,
+    isBankEnabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val buttonBorderThickness = 2.dp
+    val disabledAlpha = 0.4f
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(
+            onClick = onRollDice,
+            enabled = isRollEnabled,
+            shape = NeonButtonShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.primary,
+                disabledContainerColor = Color.Transparent,
+                disabledContentColor = MaterialTheme.colorScheme.primary.copy(alpha = disabledAlpha)
+            ),
+            border = BorderStroke(
+                buttonBorderThickness,
+                if (isRollEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = disabledAlpha)
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Text("Lancer")
+        }
+
+        Button(
+            onClick = onBankScore,
+            enabled = isBankEnabled,
+            shape = NeonButtonShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.secondary,
+                disabledContainerColor = Color.Transparent,
+                disabledContentColor = MaterialTheme.colorScheme.secondary.copy(alpha = disabledAlpha)
+            ),
+            border = BorderStroke(
+                buttonBorderThickness,
+                if (isBankEnabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondary.copy(alpha = disabledAlpha)
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            Text("Banquer")
+        }
+    }
+}
+
 @Composable
 fun SingleDie(
     value: Int,
@@ -266,31 +307,27 @@ fun SingleDie(
     onClick: () -> Unit
 ) {
     val isEffectivelySelected = isSelected && !isScored
-    val isEffectivelyScored = isScored
     val isPlaceholder = value == 0
 
     val dieFaceColor = when {
-        isEffectivelyScored -> MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
+        isScored -> MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
         isEffectivelySelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
         isPlaceholder -> MaterialTheme.colorScheme.surface.copy(alpha = 0.2f)
         else -> MaterialTheme.colorScheme.surface
     }
-
     val dieBorderColor = when {
-        isEffectivelyScored -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+        isScored -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
         isEffectivelySelected -> MaterialTheme.colorScheme.primary
         isPlaceholder -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
         else -> MaterialTheme.colorScheme.outline
     }
-
     val dotColor = when {
-        isEffectivelyScored -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+        isScored -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
         isEffectivelySelected -> MaterialTheme.colorScheme.primary
         isPlaceholder -> Color.Transparent
         else -> MaterialTheme.colorScheme.onSurface
     }
-
-    val clickableEnabled = !isPlaceholder && !isEffectivelyScored
+    val clickableEnabled = !isPlaceholder && !isScored
 
     Box(
         modifier = Modifier
@@ -304,163 +341,99 @@ fun SingleDie(
             modifier = Modifier.fillMaxSize()
         ) {
             val cornerRadius = CornerRadius(PixelArtCornerSize.toPx(), PixelArtCornerSize.toPx())
-
             drawRoundRect(
                 color = dieFaceColor,
-                size = this.size, // this.size refers to DrawScope's size
+                size = this.size,
                 cornerRadius = cornerRadius
             )
-
             if (!isPlaceholder) {
-                drawDieDots(value, dotColor)
+                drawDieDots(value, dotColor, DieDotSizeRatio)
             }
         }
     }
 }
 
-/**
- * Draws the dots on a die face within a [DrawScope].
- *
- * @param value The face value of the die (1-6) determining the dot pattern.
- * @param color The color of the dots.
- */
-private fun DrawScope.drawDieDots(value: Int, color: Color) {
+fun DrawScope.drawDieDots(value: Int, dotColor: Color, dotSizeRatio: Float) {
     val dieWidth = size.width
     val dieHeight = size.height
-    val dotRadius = (minOf(dieWidth, dieHeight) * DieDotSizeRatio) / 2f
+    val dotRadius = (minOf(dieWidth, dieHeight) * dotSizeRatio) / 2f
 
-    val center = Pair(0.5f, 0.5f)
-    val topLeft = Pair(0.25f, 0.25f)
-    // val topCenter = Pair(0.5f, 0.25f) // Not used in typical 1-6 patterns
-    val topRight = Pair(0.75f, 0.25f)
-    val middleLeft = Pair(0.25f, 0.5f)
-    val middleRight = Pair(0.75f, 0.5f)
-    val bottomLeft = Pair(0.25f, 0.75f)
-    // val bottomCenter = Pair(0.5f, 0.75f) // Not used
-    val bottomRight = Pair(0.75f, 0.75f)
+    val center = Offset(dieWidth / 2, dieHeight / 2)
+    val left = dieWidth / 4
+    val top = dieHeight / 4
+    val right = dieWidth * 3 / 4
+    val bottom = dieHeight * 3 / 4
 
-    val dotPositions = when (value) {
+    val positions = when (value) {
         1 -> listOf(center)
-        2 -> listOf(topLeft, bottomRight)
-        3 -> listOf(topLeft, center, bottomRight)
-        4 -> listOf(topLeft, topRight, bottomLeft, bottomRight)
-        5 -> listOf(topLeft, topRight, center, bottomLeft, bottomRight)
-        6 -> listOf(topLeft, topRight, middleLeft, middleRight, bottomLeft, bottomRight)
+        2 -> listOf(Offset(left, top), Offset(right, bottom))
+        3 -> listOf(Offset(left, top), center, Offset(right, bottom))
+        4 -> listOf(Offset(left, top), Offset(right, top), Offset(left, bottom), Offset(right, bottom))
+        5 -> listOf(Offset(left, top), Offset(right, top), center, Offset(left, bottom), Offset(right, bottom))
+        6 -> listOf(Offset(left, top), Offset(right, top), Offset(left, center.y), Offset(right, center.y), Offset(left, bottom), Offset(right, bottom))
         else -> emptyList()
     }
-
-    dotPositions.forEach { pos ->
-        drawCircle(
-            color = color,
-            radius = dotRadius,
-            center = Offset(dieWidth * pos.first, dieHeight * pos.second)
-        )
+    positions.forEach { pos ->
+        drawCircle(color = dotColor, radius = dotRadius, center = pos)
     }
 }
 
-/**
- * Displays the main action buttons for the game: "LANCER" (Roll) and "BANQUER" (Bank).
- *
- * @param onRollDice Callback invoked when the roll button is clicked.
- * @param isRollEnabled True if the roll button should be enabled, false otherwise.
- * @param onBankScore Callback invoked when the bank button is clicked.
- * @param isBankEnabled True if the bank button should be enabled, false otherwise.
- */
-@Composable
-fun ActionButtons(
-    onRollDice: () -> Unit,
-    isRollEnabled: Boolean,
-    onBankScore: () -> Unit,
-    isBankEnabled: Boolean
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        NeonButton(
-            text = "LANCER",
-            onClick = onRollDice,
-            enabled = isRollEnabled,
-            modifier = Modifier.fillMaxWidth(0.6f)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        NeonButton(
-            text = "BANQUER",
-            onClick = onBankScore,
-            enabled = isBankEnabled,
-            modifier = Modifier.fillMaxWidth(0.6f)
-        )
-    }
-}
-
-/**
- * Displays options to start a new game, allowing selection of the number of players.
- *
- * @param onStartGame Callback invoked when a new game option is selected, passing the number of players.
- * @param modifier The [Modifier] to be applied to this composable.
- */
 @Composable
 fun NewGameOptions(onStartGame: (Int) -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            "NOUVELLE PARTIE",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NeonButton(text = "1 JOUEUR", onClick = { onStartGame(1) }, modifier = Modifier.width(120.dp))
-            NeonButton(text = "2 JOUEURS", onClick = { onStartGame(2) }, modifier = Modifier.width(120.dp))
+        Text("Nouvelle Partie", style = MaterialTheme.typography.headlineSmall)
+        Button(onClick = { onStartGame(1) }, shape = NeonButtonShape) { Text("1 Joueur") }
+        Button(onClick = { onStartGame(2) }, shape = NeonButtonShape) { Text("2 Joueurs") }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 380, heightDp = 720)
+@Composable
+fun GameScreenPreview_NewGame() {
+    CinqMilleTheme {
+        val viewModel = GameViewModel() // Utilise le constructeur par défaut
+        GameScreen(viewModel)
+    }
+}
+
+@Preview(showBackground = true, widthDp = 380, heightDp = 720)
+@Composable
+fun GameScreenPreview_GameInProgress() {
+    CinqMilleTheme {
+        val viewModel = GameViewModel() // Utilise le constructeur par défaut
+        // Simuler un état de jeu en cours pour le preview
+        // Cela nécessiterait d'exposer des méthodes sur le ViewModel pour le peupler
+        // ou d'avoir un constructeur qui prend un GameUiState initial.
+        // Pour l'instant, nous pouvons juste démarrer un jeu.
+        viewModel.startGame(2) // Démarre un jeu simple
+        // Pour un preview plus riche, il faudrait un mécanisme pour setter un UiState spécifique.
+        GameScreen(viewModel)
+    }
+}
+
+@Preview
+@Composable
+fun SingleDiePreview() {
+    CinqMilleTheme {
+        Column {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                SingleDie(value = 1, isSelected = false, isScored = false, onClick = {})
+                SingleDie(value = 2, isSelected = true, isScored = false, onClick = {})
+                SingleDie(value = 3, isSelected = false, isScored = true, onClick = {})
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                SingleDie(value = 4, isSelected = false, isScored = false, onClick = {})
+                SingleDie(value = 5, isSelected = true, isScored = true, onClick = {}) // Cas non réaliste mais ok pour preview
+                SingleDie(value = 6, isSelected = false, isScored = false, onClick = {})
+            }
+            Spacer(Modifier.height(4.dp))
+            SingleDie(value = 0, isSelected = false, isScored = false, onClick = {}) // Placeholder
         }
     }
 }
 
-/**
- * A styled button with a "neon" look and feel, consistent with the game's theme.
- *
- * @param text The text to display on the button.
- * @param onClick Callback invoked when the button is clicked.
- * @param modifier The [Modifier] to be applied to this button.
- * @param enabled True if the button should be enabled and clickable, false otherwise.
- */
-@Composable
-fun NeonButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        enabled = enabled,
-        shape = NeonButtonShape,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.primary,
-            disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-            disabledContentColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-        )
-    ) {
-        val textColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-        Text(text, style = MaterialTheme.typography.labelLarge.copy(color = textColor))
-    }
-}
-
-/**
- * Preview for the [GameScreen] using the RetroNeon theme.
- */
-@Preview(showBackground = true, widthDp = 380, heightDp = 720)
-@Suppress("ViewModelConstructorCall") // Suppress lint warning for direct ViewModel instantiation in Preview
-@Composable
-fun GameScreenPreview_RetroNeon() {
-    CinqMilleTheme(darkTheme = true, dynamicColor = false) {
-        val previewGameManager = GameManager(DefaultDiceRoller())
-        // ViewModel is instantiated directly for preview purposes. This is acceptable.
-        val previewViewModel = GameViewModel(previewGameManager)
-        GameScreen(gameViewModel = previewViewModel)
-    }
-}

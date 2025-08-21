@@ -1,9 +1,10 @@
 package fr.antoinehory.cinqmille.game
 
-// Player, DiceRoller, GameRules should be imported or accessible
+// Assurez-vous que Player, DiceRoller, GameRules, DiceRoll sont importés ou accessibles.
 // import fr.antoinehory.cinqmille.game.Player
 // import fr.antoinehory.cinqmille.game.DiceRoller
 // import fr.antoinehory.cinqmille.game.GameRules
+// import fr.antoinehory.cinqmille.game.DiceRoll // Si nécessaire pour GameEvent.PlayerBusted
 
 /**
  * Manages the overall game flow, player states, and turn transitions for the Cinq Mille game.
@@ -29,7 +30,7 @@ class GameManager(private val diceRoller: DiceRoller) {
     private lateinit var turnManager: TurnManager
 
     /** The minimum score a player must achieve in a single turn to "open" their score. */
-    val MIN_SCORE_TO_OPEN = 750
+    val MIN_SCORE_TO_OPEN = 750 // Conforme à GameRules par défaut
     /** The target score a player must reach or exceed to win the game. */
     val TARGET_SCORE_TO_WIN = 5000
 
@@ -49,14 +50,6 @@ class GameManager(private val diceRoller: DiceRoller) {
     /** Flag indicating if a game is currently active. */
     private var gameInProgress: Boolean = false
 
-    /**
-     * Starts a new game with the specified number of players.
-     * Initializes player list, sets the first player, and resets game state.
-     *
-     * @param numberOfPlayers The number of players for the game. Must be positive.
-     * @return [GameEvent.GameStarted] if the game starts successfully,
-     *         or [GameEvent.InvalidGameAction] if the number of players is invalid.
-     */
     fun startGame(numberOfPlayers: Int): GameEvent {
         if (numberOfPlayers <= 0) {
             return GameEvent.InvalidGameAction("Number of players must be positive.")
@@ -67,163 +60,174 @@ class GameManager(private val diceRoller: DiceRoller) {
         }
         currentPlayerIndex = 0
         gameInProgress = true
-        prepareTurnForCurrentPlayer() // This will now use the updated player
-        return GameEvent.GameStarted(players.toList(), players[currentPlayerIndex])
+
+        val player = currentPlayer!!
+        turnManager = TurnManager(
+            diceRoller,
+            GameRules(openingScoreThreshold = MIN_SCORE_TO_OPEN),
+            player.hasOpened
+        )
+        return GameEvent.GameStarted(players.toList(), player)
     }
 
-    /**
-     * Initializes or re-initializes the [TurnManager] for the current player's turn.
-     * This method sets up the `turnManager` with the game's `DiceRoller`,
-     * `GameRules` (using `MIN_SCORE_TO_OPEN`), and the current player's `hasOpened` status.
-     * It is called at the beginning of each player's turn or when the game starts.
-     * If there is no current player (e.g., game not started or error state),
-     * an error is logged, and the `turnManager` is not updated.
-     */
     private fun prepareTurnForCurrentPlayer() {
         val player = currentPlayer
         if (player != null) {
-            turnManager = TurnManager(
-                diceRoller,
-                GameRules(openingScoreThreshold = MIN_SCORE_TO_OPEN),
-                player.hasOpened
-            )
+            if (::turnManager.isInitialized) {
+                turnManager.resetForNewTurn(player.hasOpened)
+            } else {
+                turnManager = TurnManager(
+                    diceRoller,
+                    GameRules(openingScoreThreshold = MIN_SCORE_TO_OPEN),
+                    player.hasOpened
+                )
+            }
         } else {
-            // Log error or handle exceptional state: Cannot prepare turn for a null player.
-            // This implies game is not started, or no players, or currentPlayerIndex is invalid.
-            // If ::turnManager.isInitialized, it might retain state of the previous player if not cleared elsewhere.
+            // This should ideally not happen if game flow is correct
             println("Error: GameManager.prepareTurnForCurrentPlayer() called with a null current player.")
         }
     }
 
-    /**
-     * Handles the player's primary action which involves rolling dice.
-     * If dice were selected (`selectedIndices` is not null and not empty), it processes the selection.
-     * If the selection scores and allows for another roll, it automatically triggers a roll of the remaining dice.
-     * If no dice were selected (`selectedIndices` is null or empty), it performs an initial roll for the turn/segment.
-     *
-     * @param selectedIndices The indices of dice selected by the player from a previous roll,
-     *                        or null/empty if this is an initial roll for the turn/segment.
-     * @return A [GameEvent] representing the outcome: [GameEvent.CurrentTurnUpdated]
-     *         (with [TurnEvent.Rolled] or [TurnEvent.Scored]), [GameEvent.PlayerBusted],
-     *         or [GameEvent.InvalidGameAction].
-     */
     fun handleRollAction(selectedIndices: List<Int>?): GameEvent {
         if (!gameInProgress || currentPlayer == null || !::turnManager.isInitialized) {
             return GameEvent.InvalidGameAction("Game not started or no current player/turn manager.")
         }
-        val player = currentPlayer!! // Capture current player
+        val player = currentPlayer!!
 
-        if (selectedIndices != null && selectedIndices.isNotEmpty()) { // Process selection first
-            val selectionEvent = turnManager.selectDice(selectedIndices)
+        val turnEventResult = if (selectedIndices != null && selectedIndices.isNotEmpty()) {
+            // MODIFIED: Pass processRestOfTurnAutomatically = true for standard roll/selection
+            turnManager.selectDice(selectedIndices, processRestOfTurnAutomatically = true)
+        } else {
+            turnManager.rollDice()
+        }
 
-            return when (selectionEvent) {
-                is TurnEvent.Busted -> {
-                    moveToNextPlayer()
-                    GameEvent.PlayerBusted(player)
-                }
-                is TurnEvent.Scored -> {
-                    if (selectionEvent.canRollAgain) {
-                        val rollAfterSelectionEvent = turnManager.rollDice() // Auto-roll remaining
-                        when (rollAfterSelectionEvent) {
-                            is TurnEvent.Busted -> {
-                                moveToNextPlayer()
-                                GameEvent.PlayerBusted(player)
-                            }
-                            is TurnEvent.Rolled -> GameEvent.CurrentTurnUpdated(rollAfterSelectionEvent)
-                            is TurnEvent.InvalidAction -> GameEvent.InvalidGameAction("Invalid action from auto-roll: ${rollAfterSelectionEvent.message}")
-                            else -> GameEvent.InvalidGameAction("Unexpected event after auto-roll: ${rollAfterSelectionEvent::class.simpleName}")
-                        }
-                    } else {
-                        GameEvent.CurrentTurnUpdated(selectionEvent) // Player scored, cannot roll again (must bank or turn ends if no dice)
-                    }
-                }
-                is TurnEvent.InvalidAction -> GameEvent.CurrentTurnUpdated(selectionEvent) // Propagate invalid selection
-                else -> GameEvent.InvalidGameAction("Unexpected event from selectDice: ${selectionEvent::class.simpleName}")
+        return when (turnEventResult) {
+            is TurnEvent.Busted -> {
+                val diceAtBust = turnEventResult.diceAtBust
+                // Player busts their turn, score for this turn is 0.
+                player.lastKnownTurnScore = 0 // Explicitly set to 0 on bust
+                moveToNextPlayer()
+                GameEvent.PlayerBusted(player, diceAtBust)
             }
-        } else { // Initial roll for the turn or segment
-            val rollEvent = turnManager.rollDice()
-            return when (rollEvent) {
-                is TurnEvent.Busted -> {
-                    moveToNextPlayer()
-                    GameEvent.PlayerBusted(player)
-                }
-                is TurnEvent.Rolled -> GameEvent.CurrentTurnUpdated(rollEvent)
-                is TurnEvent.InvalidAction -> GameEvent.InvalidGameAction("Invalid action from initial roll: ${rollEvent.message}")
-                else -> GameEvent.InvalidGameAction("Unexpected event from initial roll: ${rollEvent::class.simpleName}")
+            is TurnEvent.Scored, is TurnEvent.Rolled, is TurnEvent.InvalidAction -> {
+                GameEvent.CurrentTurnUpdated(turnEventResult)
+            }
+            is TurnEvent.TurnEndedBanked -> {
+                GameEvent.InvalidGameAction("Unexpected TurnEndedBanked from handleRollAction.")
             }
         }
     }
 
-    /**
-     * Handles the current player's action to bank their current turn score.
-     * Updates the player's total score, checks for opening requirements, and game-winning conditions.
-     * Moves to the next player if the game is not won.
-     *
-     * @return A [GameEvent] representing the outcome: [GameEvent.PlayerOpenedAndScored],
-     *         [GameEvent.PlayerScored], [GameEvent.PlayerFailedToOpen], [GameEvent.PlayerWon],
-     *         [GameEvent.CurrentTurnUpdated] (with [TurnEvent.InvalidAction]), or [GameEvent.InvalidGameAction].
-     */
-    fun currentTurnBankScore(): GameEvent {
+    fun currentTurnBankScore(pendingSelectedIndices: List<Int>? = null): GameEvent {
         if (!gameInProgress || currentPlayer == null || !::turnManager.isInitialized) {
             return GameEvent.InvalidGameAction("Game not started or no current player/turn manager.")
         }
 
         val player = currentPlayer!!
-        val bankEventFromTurnManager = turnManager.bankScore()
 
-        return when (bankEventFromTurnManager) {
-            is TurnEvent.TurnEndedBanked -> {
-                val bankedScoreInTurn = bankEventFromTurnManager.finalTurnScore
-                var gameEvent: GameEvent
+        if (pendingSelectedIndices != null && pendingSelectedIndices.isNotEmpty()) {
+            // MODIFIED: Pass processRestOfTurnAutomatically = false for banking a selection
+            val selectionResult = turnManager.selectDice(
+                selectedIndices = pendingSelectedIndices,
+                processRestOfTurnAutomatically = false
+            )
 
-                player.lastKnownTurnScore = turnManager.getCurrentTurnScore() // What they had *before* bank determined final banked value
-
-                if (!player.hasOpened) {
-                    if (bankedScoreInTurn >= MIN_SCORE_TO_OPEN) {
-                        player.hasOpened = true
-                        player.totalScore += bankedScoreInTurn
-                        gameEvent = GameEvent.PlayerOpenedAndScored(player, bankedScoreInTurn, player.totalScore)
-                    } else {
-                        // bankedScoreInTurn from TurnManager will be 0 if opening condition failed there.
-                        // PlayerFailedToOpen uses lastKnownTurnScore to show what was attempted/lost.
-                        gameEvent = GameEvent.PlayerFailedToOpen(player, player.lastKnownTurnScore)
-                    }
-                } else {
-                    player.totalScore += bankedScoreInTurn
-                    gameEvent = GameEvent.PlayerScored(player, bankedScoreInTurn, player.totalScore)
-                }
-
-                if ((player.hasOpened || gameEvent is GameEvent.PlayerOpenedAndScored) && player.totalScore >= TARGET_SCORE_TO_WIN) {
-                    if (gameEvent !is GameEvent.PlayerFailedToOpen) { // Don't win on a failed open
-                        gameInProgress = false
-                        return GameEvent.PlayerWon(player, player.totalScore)
-                    }
-                }
-
-                if (gameInProgress) {
+            when (selectionResult) {
+                is TurnEvent.Busted -> {
+                    // Bust occurred while trying to select dice just before banking.
+                    // The turnManager's internal score *might* have been updated before this bust,
+                    // but a bust from selectDice implies the selection itself was problematic (scored 0).
+                    val diceAtBust = selectionResult.diceAtBust
+                    player.lastKnownTurnScore = 0 // Score lost
                     moveToNextPlayer()
+                    return GameEvent.PlayerBusted(player, diceAtBust)
                 }
-                gameEvent
+                is TurnEvent.InvalidAction -> {
+                    return GameEvent.InvalidGameAction("Invalid dice selection before banking: ${selectionResult.message}")
+                }
+                is TurnEvent.Scored -> {
+                    // Selection was successful. The turnManager's score is updated internally.
+                    // Now proceed to bank this updated score.
+                }
+                is TurnEvent.Rolled -> {
+                    return GameEvent.InvalidGameAction("Unexpected 'Rolled' event after selecting dice before banking.")
+                }
+                is TurnEvent.TurnEndedBanked -> {
+                    // This shouldn't happen from selectDice.
+                    return GameEvent.InvalidGameAction("Unexpected 'TurnEndedBanked' event from selectDice before banking.")
+                }
             }
-            is TurnEvent.InvalidAction -> {
-                GameEvent.CurrentTurnUpdated(bankEventFromTurnManager)
+        }
+
+        // Now, proceed to bank the score accumulated in the turnManager.
+        val turnManagerBankEvent = turnManager.bankScore() // turnManagerEvent is TurnEvent.TurnEndedBanked or InvalidAction
+
+        if (turnManagerBankEvent is TurnEvent.TurnEndedBanked) {
+            val bankedScoreInTurn = turnManagerBankEvent.finalTurnScore // This is the actual score from TurnManager
+            var gameEventToReturn: GameEvent
+
+            player.lastKnownTurnScore = bankedScoreInTurn // Store what was actually banked this turn
+
+            if (!player.hasOpened) {
+                if (bankedScoreInTurn >= MIN_SCORE_TO_OPEN) {
+                    player.hasOpened = true
+                    player.totalScore += bankedScoreInTurn
+                    gameEventToReturn = GameEvent.PlayerOpenedAndScored(player, bankedScoreInTurn, player.totalScore)
+                } else {
+                    // Player failed to open. bankedScoreInTurn is the score they *attempted* to open with.
+                    // Their totalScore does not change.
+                    gameEventToReturn = GameEvent.PlayerFailedToOpen(player, bankedScoreInTurn)
+                }
+            } else { // Player has already opened
+                if (bankedScoreInTurn > 0) { // Only add positive score
+                    player.totalScore += bankedScoreInTurn
+                    gameEventToReturn = GameEvent.PlayerScored(player, bankedScoreInTurn, player.totalScore)
+                } else {
+                    // Player banked 0 or less (if possible) after opening. No change in total score.
+                    // Still, a "PlayerScored" event might be relevant to signal turn end.
+                    gameEventToReturn = GameEvent.PlayerScored(player, 0, player.totalScore)
+                }
             }
-            else -> GameEvent.InvalidGameAction("Unexpected event from bankScore: ${bankEventFromTurnManager::class.simpleName}")
+
+            // Check for win condition only if a valid score affecting progression was made.
+            // This means they successfully opened OR they were already open and banked > 0.
+            val scoreContributesToWin = (player.hasOpened && bankedScoreInTurn >= MIN_SCORE_TO_OPEN && gameEventToReturn is GameEvent.PlayerOpenedAndScored) ||
+                    (player.hasOpened && bankedScoreInTurn > 0 && gameEventToReturn is GameEvent.PlayerScored && gameEventToReturn.scoreThisTurn >0)
+
+
+            if (scoreContributesToWin && player.totalScore >= TARGET_SCORE_TO_WIN) {
+                gameInProgress = false
+                return GameEvent.PlayerWon(player, player.totalScore)
+            }
+
+            if (gameInProgress) {
+                moveToNextPlayer()
+            }
+            return gameEventToReturn
+
+        } else if (turnManagerBankEvent is TurnEvent.InvalidAction) {
+            // This can happen if bankScore() from TurnManager returns InvalidAction
+            // (e.g. TurnManager's internal rules for banking 0).
+            return GameEvent.InvalidGameAction("Cannot bank: ${turnManagerBankEvent.message}")
+        } else {
+            // Should not happen if TurnManager.bankScore() is correctly typed
+            return GameEvent.InvalidGameAction("Unexpected event type from TurnManager.bankScore(): ${turnManagerBankEvent::class.simpleName}")
         }
     }
 
-    /**
-     * Moves to the next player in the list and prepares the [TurnManager] for their turn.
-     * This method does not emit an event itself; events are typically emitted by the action
-     * that leads to the turn change (e.g., banking, busting).
-     * If the game is not in progress or no players exist, this method does nothing.
-     */
+    fun calculatePreviewScore(diceValues: List<Int>): Int {
+        return ScoreCalculator.calculateScore(diceValues)
+    }
+
     private fun moveToNextPlayer() {
-        if (players.isEmpty() || !gameInProgress) {
+        if (players.isEmpty()) {
             return
         }
         currentPlayerIndex = (currentPlayerIndex + 1) % players.size
-        prepareTurnForCurrentPlayer()
-        // Consider emitting GameEvent.PlayerTurnStarted(players[currentPlayerIndex], turnManager.latestRoll, etc.)
+        if (currentPlayer != null) {
+            prepareTurnForCurrentPlayer()
+        } else {
+            gameInProgress = false
+        }
     }
 }

@@ -1,8 +1,6 @@
 package fr.antoinehory.cinqmille.game
 
-// DiceRoll typealias is assumed to be accessible.
-// If DiceRoll is in another file like DiceRollUtils.kt and not auto-imported:
-// import fr.antoinehory.cinqmille.game.DiceRoll // Or the correct path if it's defined elsewhere
+// DiceRoll est défini dans DiceRollUtils.kt
 
 /**
  * Represents events that occur within a single player's turn, managed by [TurnManager].
@@ -10,44 +8,56 @@ package fr.antoinehory.cinqmille.game
  */
 sealed class TurnEvent {
     /**
-     * Indicates that dice have been rolled.
-     * @param dice The [DiceRoll] (list of dice values) from the roll.
+     * Indicates that dice have been rolled (typically an initial roll or a roll after all dice scored).
+     * @param dice The [DiceRoll] (list of all dice values, e.g., 5 or 6 dice) from the roll.
      * @param canPlayerMakeAnyScore True if the rolled dice can potentially score, false otherwise.
      */
     data class Rolled(val dice: DiceRoll, val canPlayerMakeAnyScore: Boolean) : TurnEvent()
 
     /**
-     * Indicates that the player has made a valid selection of dice that scores points.
-     * @param scoreFromSelection The score obtained from this specific selection.
-     * @param newTurnTotalScore The total accumulated score for the current turn *after* this selection.
-     * @param diceSelected The actual dice values that were selected by the player to achieve this score.
-     * @param remainingDiceInHand The dice that were *not* part of this selection and remain from the original roll.
-     *                            These are the dice the player can choose to roll again if `canRollAgain` is true.
-     *                            If empty and `canRollAgain` is true, it implies the player can roll all new dice (e.g., 5 dice).
-     * @param canRollAgain True if the player has the option to roll again (either the `remainingDiceInHand` or a full set of new dice if all scored).
+     * Indicates that the player has made a valid selection of dice that scores points,
+     * AND the remaining dice (if any and if rollable) have been automatically re-rolled.
+     * This event provides the state AFTER that combined action.
+     *
+     * @param newTurnTotalScore The total accumulated score for the current turn *after* this selection and auto-roll.
+     * @param diceStateAfterAction The complete [DiceRoll] to be displayed (e.g., 5 or 6 dice).
+     *                             This includes dice that were part of the scoring selection (kept)
+     *                             and the new values of dice that were re-rolled.
+     * @param scoredDiceMask A list of booleans, same size as [diceStateAfterAction].
+     *                       `true` at an index means the die at that position in [diceStateAfterAction]
+     *                       was part of the scoring selection and was "kept".
+     *                       `false` means it's a newly rolled die from this action or a die that wasn't part of the score.
+     * @param canRollAgain True if the player has the option to make a new selection from [diceStateAfterAction]
+     *                     and continue the turn. False if no more scoring dice can be selected or all dice scored.
      */
     data class Scored(
-        val scoreFromSelection: Int,
         val newTurnTotalScore: Int,
-        val diceSelected: DiceRoll,
-        val remainingDiceInHand: DiceRoll,
+        val diceStateAfterAction: DiceRoll,
+        val scoredDiceMask: List<Boolean>, // Masque pour les dés dans diceStateAfterAction
         val canRollAgain: Boolean
     ) : TurnEvent()
 
     /**
      * Indicates that the player's action (roll or selection) resulted in a "bust".
-     * The player's current turn score is typically reset.
+     * The player's current turn score is typically reset to 0 for the turn.
+     * @param diceAtBust The [DiceRoll] (values of the dice) that caused the bust and should be displayed.
      * @param finalTurnScore The score of the turn when it busted. Per game rules, this is 0 for the turn.
      *                       The default value is 0.
      */
-    data class Busted(val finalTurnScore: Int = 0) : TurnEvent() // Commentaire original: Le score d'un bust est toujours 0 pour le tour.
+    data class Busted(
+        val diceAtBust: DiceRoll,
+        val finalTurnScore: Int = 0 // Le score d'un bust est toujours 0 pour le tour.
+    ) : TurnEvent()
 
     /**
      * Indicates that the player has successfully banked their score for the turn.
      * The turn ends.
      * @param finalTurnScore The total score banked by the player in this turn.
+     * @param newTotalPlayerScore The player's new total score after banking.
      */
-    data class TurnEndedBanked(val finalTurnScore: Int) : TurnEvent()
+    data class TurnEndedBanked(
+        val finalTurnScore: Int
+    ) : TurnEvent()
 
     /**
      * Indicates that an action attempted by the player during their turn was invalid.
