@@ -9,38 +9,47 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-private val LofiCyberColorScheme = darkColorScheme(
-    primary = LofiCyberPrimary,
-    onPrimary = LofiCyberOnPrimary,
-    secondary = LofiCyberSecondary,
-    onSecondary = LofiCyberOnPrimary,
-    background = LofiCyberBackground,
-    onBackground = LofiCyberOnSurface,
-    surface = LofiCyberSurface,
-    onSurface = LofiCyberOnSurface,
-    error = LofiCyberError,
-    onError = LofiCyberOnPrimary
+// Nouveau ColorScheme pour le thème Néon Rétro Futuriste
+private val NeonColorScheme = darkColorScheme(
+    primary = NeonCyan,
+    onPrimary = NeonDarkBackground,
+    secondary = NeonMagenta,
+    onSecondary = NeonDarkBackground,
+    tertiary = NeonYellow,
+    onTertiary = NeonDarkBackground,
+    background = NeonDarkBackground,
+    onBackground = NeonWhite,
+    surface = NeonButtonBackground,
+    onSurface = NeonWhite,
+    error = NeonRed,
+    onError = NeonDarkBackground,
+    surfaceVariant = Color(0xFF1A1A3A),
+    onSurfaceVariant = NeonWhite,
+    outline = NeonCyan
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = LofiCyberPrimary,
-    onPrimary = LofiCyberOnPrimary,
-    secondary = LofiCyberSecondary,
-    onSecondary = LofiCyberOnPrimary,
-    background = LofiCyberBackground,
-    onBackground = LofiCyberOnSurface,
-    surface = LofiCyberSurface,
-    onSurface = LofiCyberOnSurface,
-    error = LofiCyberError,
-    onError = LofiCyberOnPrimary
+// Le LofiCyberColorScheme a été supprimé.
+
+private val DefaultLightColorScheme = lightColorScheme(
+    primary = NeonCyan,
+    onPrimary = NeonDarkBackground,
+    secondary = NeonMagenta,
+    onSecondary = NeonDarkBackground,
+    background = Color(0xFFE0E0FF),
+    onBackground = NeonDarkBackground,
+    surface = Color(0xFFF0F0FF),
+    onSurface = NeonDarkBackground,
+    error = NeonRed,
+    onError = Color.White
+    // ... définir les autres couleurs pour un thème clair ...
 )
 
 @Composable
 fun CinqMilleTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
@@ -49,14 +58,14 @@ fun CinqMilleTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-
-        darkTheme -> LofiCyberColorScheme
-        else -> LightColorScheme
+        darkTheme -> NeonColorScheme
+        else -> DefaultLightColorScheme
     }
 
     MaterialTheme(
-        colorScheme = LofiCyberColorScheme,
+        colorScheme = colorScheme,
         typography = Typography,
         content = content
     )
 }
+

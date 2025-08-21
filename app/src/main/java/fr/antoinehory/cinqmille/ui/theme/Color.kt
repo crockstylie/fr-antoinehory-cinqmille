@@ -2,11 +2,14 @@ package fr.antoinehory.cinqmille.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val LofiCyberBackground = Color(0xFF100F25)
-val LofiCyberSurface = Color(0xFF1A1934)
-val LofiCyberPrimary = Color(0xFF00C8FF) // Néon Bleu
-val LofiCyberSecondary = Color(0xFFFF00C8) // Néon Magenta
-val LofiCyberAccent = Color(0xFFFFFF00) // Néon Jaune
-val LofiCyberOnPrimary = Color(0xFFFFFFFF) // Texte sur les boutons néon
-val LofiCyberOnSurface = Color(0xFFE0E0E0) // Texte sur le fond sombre
-val LofiCyberError = Color(0xFFFF4444)
+// Les couleurs LofiCyber ont été supprimées.
+
+val NeonDarkBackground = Color(0xFF0A0A1E) // Un bleu très sombre, presque noir
+val NeonCyan = Color(0xFF00FFFF)
+val NeonYellow = Color(0xFFFFFFA0) // Un jaune un peu pâle pour un effet "glow"
+val NeonMagenta = Color(0xFFFF00FF) // "Violet"
+val NeonRed = Color(0xFFFF4136)
+val NeonWhite = Color(0xFFF0F0F0) // Un blanc légèrement cassé pour le texte principal
+// NeonLuminousFrame a été supprimé.
+val NeonButtonBackground = Color(0xFF222244) // Fond de bouton un peu plus clair que le fond général
+

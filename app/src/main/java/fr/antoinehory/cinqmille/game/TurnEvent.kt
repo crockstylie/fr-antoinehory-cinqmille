@@ -1,7 +1,7 @@
 package fr.antoinehory.cinqmille.game
 
 // DiceRoll typealias is assumed to be accessible.
-// If DiceRoll is in another file like GameTurn.kt and not auto-imported:
+// If DiceRoll is in another file like DiceRollUtils.kt and not auto-imported:
 // import fr.antoinehory.cinqmille.game.DiceRoll // Or the correct path if it's defined elsewhere
 
 /**

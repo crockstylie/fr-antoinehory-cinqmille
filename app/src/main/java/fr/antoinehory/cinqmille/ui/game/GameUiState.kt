@@ -1,8 +1,8 @@
 package fr.antoinehory.cinqmille.ui.game
 
-// PlayerUiState is now in its own file.
-// If GameUiState.kt previously imported fr.antoinehory.cinqmille.game.Player specifically for PlayerUiState's KDoc,
-// that import might no longer be directly needed here unless used elsewhere in this file.
+// PlayerUiState should be defined in its own file (PlayerUiState.kt) in this package
+// and imported if necessary, though direct usage here might just be for KDoc.
+// e.g., import fr.antoinehory.cinqmille.ui.game.PlayerUiState
 
 /**
  * Represents the complete state of the game screen's UI at a given moment.
@@ -16,16 +16,15 @@ package fr.antoinehory.cinqmille.ui.game
  * @property currentTurnScore The score accumulated by the current player within the current turn.
  * @property isRollButtonEnabled True if the "Roll Dice" button should be enabled, false otherwise.
  * @property isBankButtonEnabled True if the "Bank Score" button should be enabled, false otherwise.
- * @property selectedDiceIndices DEPRECATED for UI interaction. This list was previously intended for direct UI manipulation.
- *                             It will now be primarily driven by the `GameViewModel` after processing `selectedDiceVisual`.
- *                             It might still be used to send the *final* validated selection to the game logic.
- * @property selectedDiceVisual A list of booleans indicating the visual selection state of each die in [currentDiceRoll].
- *                              `true` if the die at the corresponding index is visually selected by the user, `false` otherwise.
- *                              This list should have the same size as [currentDiceRoll].
- *                              Used for immediate UI feedback.
+ * @property selectedDiceIndices DEPRECATED. Use [selectedDiceVisual] for UI interaction.
+ * @property selectedDiceVisual A list of booleans indicating the visual selection state of each die.
+ *                              This list should have the same size as [currentDiceRoll] or [INITIAL_DICE_COUNT].
+ * @property scoredDiceMask A list of booleans indicating which dice have already scored in the current turn segment
+ *                          and cannot be selected again.
+ *                          This list should have the same size as [currentDiceRoll] or [INITIAL_DICE_COUNT].
  */
 data class GameUiState(
-    val players: List<PlayerUiState> = emptyList(), // PlayerUiState will be imported from its new file
+    val players: List<PlayerUiState> = emptyList(),
     val currentPlayerId: Int? = null,
     val currentMessage: String = "Bienvenue au Cinq Mille ! Choisissez le nombre de joueurs pour commencer.",
     val currentDiceRoll: List<Int> = emptyList(),
@@ -34,11 +33,30 @@ data class GameUiState(
     val isBankButtonEnabled: Boolean = false,
     @Deprecated(
         message = "Use selectedDiceVisual for UI selection logic. This will be populated by the ViewModel based on validated selections or used to send final selections to game logic.",
-        replaceWith = ReplaceWith("selectedDiceVisual") // Suggests what to look at for UI state
+        replaceWith = ReplaceWith("selectedDiceVisual")
     )
     val selectedDiceIndices: List<Int> = emptyList(),
-    val selectedDiceVisual: List<Boolean> = emptyList(), // Should be initialized to List(currentDiceRoll.size) { false } when dice are rolled
+    val selectedDiceVisual: List<Boolean> = List(INITIAL_DICE_COUNT) { false },
+    val scoredDiceMask: List<Boolean> = List(INITIAL_DICE_COUNT) { false } // CHAMP AJOUTÉ et initialisé
     // TODO: Ajouter d'autres états UI si nécessaire (par ex. pour l'animation des dés)
-)
+) {
+    companion object {
+        /**
+         * The default number of dice to display or account for in UI lists.
+         * This should be consistent with how dice are handled in the game logic and UI.
+         * For Cinq Mille, this is typically 5.
+         */
+        const val INITIAL_DICE_COUNT = 5 // CONSTANTE AJOUTÉE
+    }
+}
 
-// PlayerUiState data class has been moved to PlayerUiState.kt
+// Assurez-vous que PlayerUiState.kt contient quelque chose comme :
+// package fr.antoinehory.cinqmille.ui.game
+//
+// data class PlayerUiState(
+//     val id: Int,
+//     val totalScore: Int,
+//     val hasOpened: Boolean,
+//     val isCurrentPlayer: Boolean
+// )
+
