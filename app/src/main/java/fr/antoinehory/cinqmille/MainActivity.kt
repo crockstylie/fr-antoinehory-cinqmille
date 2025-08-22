@@ -19,18 +19,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Sets up the Jetpack Compose UI for the game.
-        // The CinqMilleTheme wraps the main GameScreen composable.
         setContent {
             CinqMilleTheme {
                 GameScreen(gameViewModel = gameViewModel)
             }
         }
 
-        // Automatically start a new game with one player on initial creation for development/testing.
-        // This block is executed only when the Activity is first created, not on configuration changes.
-        if (savedInstanceState == null) {
-            gameViewModel.startGame(1) // Start a game with 1 player by default.
-        }
     }
 }

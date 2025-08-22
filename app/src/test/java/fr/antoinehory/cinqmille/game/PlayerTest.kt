@@ -12,24 +12,20 @@ class PlayerTest {
         assertEquals(0, player.totalScore)
         assertFalse(player.hasOpened)
         assertEquals(0, player.lastKnownTurnScore)
-        // assertFalse(player.isCurrentPlayer) // Supprimé
     }
 
     @Test
     fun `player creation with all parameters is correct`() {
-        // isCurrentPlayer n'est plus un paramètre du constructeur principal de Player
         val player = Player(
             id = 2,
             totalScore = 1000,
             hasOpened = true,
             lastKnownTurnScore = 250
-            // isCurrentPlayer = true // Supprimé
         )
         assertEquals(2, player.id)
         assertEquals(1000, player.totalScore)
         assertTrue(player.hasOpened)
         assertEquals(250, player.lastKnownTurnScore)
-        // assertTrue(player.isCurrentPlayer) // Supprimé
     }
 
     @Test
@@ -53,13 +49,6 @@ class PlayerTest {
         assertEquals(150, player.lastKnownTurnScore)
     }
 
-    // @Test // Supprimé
-    // fun `modifying isCurrentPlayer works`() {
-    //     val player = Player(id = 1)
-    //     player.isCurrentPlayer = true
-    //     assertTrue(player.isCurrentPlayer)
-    // }
-
     @Test
     fun `copy creates a new instance with potentially modified values`() {
         val player1 = Player(id = 1, totalScore = 100)
@@ -69,16 +58,15 @@ class PlayerTest {
         assertEquals(1, player2.id)
         assertEquals(200, player2.totalScore)
 
-        val player3 = player1.copy() // Copie simple
+        val player3 = player1.copy() // Simple copy
         assertNotSame(player1, player3)
         assertEquals(player1.id, player3.id)
         assertEquals(player1.totalScore, player3.totalScore)
         assertEquals(player1.hasOpened, player3.hasOpened)
         assertEquals(player1.lastKnownTurnScore, player3.lastKnownTurnScore)
-        // assertEquals(player1.isCurrentPlayer, player3.isCurrentPlayer) // Supprimé
 
         player3.totalScore = 5000
-        assertEquals(100, player1.totalScore)
-        assertEquals(5000, player3.totalScore)
+        assertEquals(100, player1.totalScore) // Original instance unchanged
+        assertEquals(5000, player3.totalScore) // Copied instance changed
     }
 }

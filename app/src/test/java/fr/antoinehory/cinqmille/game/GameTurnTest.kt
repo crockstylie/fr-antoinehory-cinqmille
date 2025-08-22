@@ -30,12 +30,11 @@ class GameTurnTest {
     @Test
     fun `selectDiceFromRoll handles duplicate indices`() {
         val currentRoll: DiceRoll = listOf(1, 2, 3, 4, 5)
-        // Order of selected dice should reflect the order of unique valid indices if distinct() and map() is used
         // The implementation uses filter().distinct().map() on indices, so output order depends on indicesToKeep order.
-        val indicesToKeep = listOf(4, 0, 2, 0, 4, 2) 
-        val expected: DiceRoll = listOf(5, 1, 3) 
+        val indicesToKeep = listOf(4, 0, 2, 0, 4, 2)
+        val expected: DiceRoll = listOf(5, 1, 3)
         assertEquals(expected, selectDiceFromRoll(currentRoll, indicesToKeep))
-        
+
         val indicesToKeep2 = listOf(0, 2, 0, 4, 2)
         val expected2: DiceRoll = listOf(1, 3, 5)
         assertEquals(expected2, selectDiceFromRoll(currentRoll, indicesToKeep2))
@@ -59,8 +58,8 @@ class GameTurnTest {
     @Test
     fun `getRemainingDice returns non-kept dice correctly`() {
         val currentRoll: DiceRoll = listOf(1, 2, 3, 4, 5)
-        val indicesKept = listOf(0, 2, 4) // Keep 1, 3, 5
-        val expected: DiceRoll = listOf(2, 4) // Remaining are 2, 4
+        val indicesKept = listOf(0, 2, 4)
+        val expected: DiceRoll = listOf(2, 4)
         assertEquals(expected, getRemainingDice(currentRoll, indicesKept))
     }
 
@@ -84,8 +83,8 @@ class GameTurnTest {
     @Test
     fun `getRemainingDice ignores invalid indices in indicesKept`() {
         val currentRoll: DiceRoll = listOf(1, 2, 3, 4, 5)
-        val indicesKept = listOf(0, 2, 4, -1, 10) // Keep 1, 3, 5; ignore -1, 10
-        val expected: DiceRoll = listOf(2, 4) // Remaining are 2, 4
+        val indicesKept = listOf(0, 2, 4, -1, 10)
+        val expected: DiceRoll = listOf(2, 4)
         assertEquals(expected, getRemainingDice(currentRoll, indicesKept))
     }
 

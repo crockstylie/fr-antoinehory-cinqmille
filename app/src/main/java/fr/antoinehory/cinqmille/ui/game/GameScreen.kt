@@ -17,11 +17,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-// import androidx.compose.foundation.layout.width // Pas utilisé directement, mais ok
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-// import androidx.compose.material3.LocalContentColor // Pas utilisé directement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,18 +37,28 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-// Supposons que GameManager, DefaultDiceRoller ne sont pas directement utilisés ici, mais dans ViewModel
-// import fr.antoinehory.cinqmille.game.GameManager
-// import fr.antoinehory.cinqmille.game.DefaultDiceRoller
 import fr.antoinehory.cinqmille.ui.theme.CinqMilleTheme
 
+/** Defines the corner size for UI elements aiming for a pixel-art or sharp-edged neon look. */
 val PixelArtCornerSize = 0.dp
+/** A [RoundedCornerShape] using [PixelArtCornerSize] for buttons, giving a sharp-edged appearance. */
 val NeonButtonShape = RoundedCornerShape(PixelArtCornerSize)
+/** A [RoundedCornerShape] using [PixelArtCornerSize] for frames or borders, maintaining a sharp-edged style. */
 val NeonFrameShape = RoundedCornerShape(PixelArtCornerSize)
+/** The standard size (width and height) for a single die Composable. */
 val DieSize: Dp = 48.dp
+/** The ratio of the die's dot size relative to the die's overall size. Used for drawing dots on a die. */
 val DieDotSizeRatio = 0.18f
+/** The fixed height for the row containing action buttons like "Roll" and "Bank". */
 val ActionButtonRowHeight: Dp = 80.dp
 
+/**
+ * The main screen for the Cinq Mille game.
+ * It observes [GameUiState] from the [gameViewModel] and displays the game board,
+ * player scores, dice, and action buttons.
+ *
+ * @param gameViewModel The [GameViewModel] providing the [GameUiState] and handling game actions.
+ */
 @Composable
 fun GameScreen(gameViewModel: GameViewModel) {
     val uiState by gameViewModel.uiState.collectAsState()
@@ -82,7 +90,6 @@ fun GameScreen(gameViewModel: GameViewModel) {
             if (uiState.currentPlayerId != null) {
                 CurrentTurnInfo(
                     currentPlayerId = uiState.currentPlayerId,
-                    // MODIFIED: Pass both scores to CurrentTurnInfo
                     accumulatedTurnScore = uiState.accumulatedTurnScore,
                     previewSelectionScore = uiState.previewSelectionScore,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -118,6 +125,12 @@ fun GameScreen(gameViewModel: GameViewModel) {
     }
 }
 
+/**
+ * Displays the scores of all players in a styled surface.
+ *
+ * @param players A list of [PlayerUiState] objects representing each player's status.
+ * @param modifier The [Modifier] for this composable.
+ */
 @Composable
 fun PlayerScores(players: List<PlayerUiState>, modifier: Modifier = Modifier) {
     Surface(
@@ -157,8 +170,8 @@ fun PlayerScores(players: List<PlayerUiState>, modifier: Modifier = Modifier) {
 @Composable
 fun CurrentTurnInfo(
     currentPlayerId: Int?,
-    accumulatedTurnScore: Int, // MODIFIED
-    previewSelectionScore: Int, // MODIFIED
+    accumulatedTurnScore: Int,
+    previewSelectionScore: Int,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -169,7 +182,6 @@ fun CurrentTurnInfo(
             text = "JOUEUR ${currentPlayerId ?: "-"}",
             style = MaterialTheme.typography.titleLarge
         )
-        // MODIFIED: Display logic for accumulated + preview score
         val scoreText = if (previewSelectionScore > 0) {
             "$accumulatedTurnScore + $previewSelectionScore"
         } else {
@@ -182,6 +194,15 @@ fun CurrentTurnInfo(
     }
 }
 
+/**
+ * Displays the area where dice are shown, allowing interaction.
+ *
+ * @param diceRoll The current list of dice values (0 for placeholder).
+ * @param selectedDiceVisual A list indicating which dice are visually selected.
+ * @param scoredDiceMask A list indicating which dice have been scored in the current segment.
+ * @param onDieClick Lambda called when a die is clicked, passing its index.
+ * @param modifier The [Modifier] for this composable.
+ */
 @Composable
 fun DiceArea(
     diceRoll: List<Int>,
@@ -239,6 +260,15 @@ fun DiceArea(
     }
 }
 
+/**
+ * Displays action buttons for the game, such as "Roll" and "Bank".
+ *
+ * @param onRollDice Lambda called when the roll button is clicked.
+ * @param isRollEnabled Boolean indicating if the roll button should be enabled.
+ * @param onBankScore Lambda called when the bank button is clicked.
+ * @param isBankEnabled Boolean indicating if the bank button should be enabled.
+ * @param modifier The [Modifier] for this composable.
+ */
 @Composable
 fun ActionButtons(
     onRollDice: () -> Unit,
@@ -299,6 +329,14 @@ fun ActionButtons(
     }
 }
 
+/**
+ * Displays a single die with its current value and state (selected, scored).
+ *
+ * @param value The face value of the die (1-6, or 0 for placeholder).
+ * @param isSelected Boolean indicating if the die is currently selected by the player.
+ * @param isScored Boolean indicating if the die has been scored in the current turn segment.
+ * @param onClick Lambda called when the die is clicked.
+ */
 @Composable
 fun SingleDie(
     value: Int,
@@ -353,6 +391,13 @@ fun SingleDie(
     }
 }
 
+/**
+ * A [DrawScope] extension function to draw the dots for a given die value.
+ *
+ * @param value The face value of the die (1-6).
+ * @param dotColor The [Color] to use for the dots.
+ * @param dotSizeRatio The ratio of the dot's diameter to the smaller dimension of the die face.
+ */
 fun DrawScope.drawDieDots(value: Int, dotColor: Color, dotSizeRatio: Float) {
     val dieWidth = size.width
     val dieHeight = size.height
@@ -371,13 +416,19 @@ fun DrawScope.drawDieDots(value: Int, dotColor: Color, dotSizeRatio: Float) {
         4 -> listOf(Offset(left, top), Offset(right, top), Offset(left, bottom), Offset(right, bottom))
         5 -> listOf(Offset(left, top), Offset(right, top), center, Offset(left, bottom), Offset(right, bottom))
         6 -> listOf(Offset(left, top), Offset(right, top), Offset(left, center.y), Offset(right, center.y), Offset(left, bottom), Offset(right, bottom))
-        else -> emptyList()
+        else -> emptyList() // Should not happen for valid die values 1-6
     }
     positions.forEach { pos ->
         drawCircle(color = dotColor, radius = dotRadius, center = pos)
     }
 }
 
+/**
+ * Displays options for starting a new game, allowing selection of the number of players.
+ *
+ * @param onStartGame Lambda called when a new game option is selected, passing the number of players.
+ * @param modifier The [Modifier] for this composable.
+ */
 @Composable
 fun NewGameOptions(onStartGame: (Int) -> Unit, modifier: Modifier = Modifier) {
     Column(
@@ -395,7 +446,7 @@ fun NewGameOptions(onStartGame: (Int) -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun GameScreenPreview_NewGame() {
     CinqMilleTheme {
-        val viewModel = GameViewModel() // Utilise le constructeur par défaut
+        val viewModel = GameViewModel() // Uses default constructor
         GameScreen(viewModel)
     }
 }
@@ -404,13 +455,13 @@ fun GameScreenPreview_NewGame() {
 @Composable
 fun GameScreenPreview_GameInProgress() {
     CinqMilleTheme {
-        val viewModel = GameViewModel() // Utilise le constructeur par défaut
-        // Simuler un état de jeu en cours pour le preview
-        // Cela nécessiterait d'exposer des méthodes sur le ViewModel pour le peupler
-        // ou d'avoir un constructeur qui prend un GameUiState initial.
-        // Pour l'instant, nous pouvons juste démarrer un jeu.
-        viewModel.startGame(2) // Démarre un jeu simple
-        // Pour un preview plus riche, il faudrait un mécanisme pour setter un UiState spécifique.
+        val viewModel = GameViewModel() // Uses default constructor
+        // Simulate an ongoing game state for the preview.
+        // This might require exposing methods on the ViewModel to populate it
+        // or having a constructor that takes an initial GameUiState.
+        // For now, we can just start a simple game.
+        viewModel.startGame(2) // Start a simple 2-player game
+        // For a richer preview, a mechanism to set a specific UiState would be needed.
         GameScreen(viewModel)
     }
 }
@@ -428,7 +479,7 @@ fun SingleDiePreview() {
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 SingleDie(value = 4, isSelected = false, isScored = false, onClick = {})
-                SingleDie(value = 5, isSelected = true, isScored = true, onClick = {}) // Cas non réaliste mais ok pour preview
+                SingleDie(value = 5, isSelected = true, isScored = true, onClick = {}) // Unrealistic case but okay for preview
                 SingleDie(value = 6, isSelected = false, isScored = false, onClick = {})
             }
             Spacer(Modifier.height(4.dp))
@@ -436,4 +487,3 @@ fun SingleDiePreview() {
         }
     }
 }
-

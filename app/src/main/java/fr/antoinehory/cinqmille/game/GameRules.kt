@@ -1,30 +1,31 @@
 package fr.antoinehory.cinqmille.game
 
-// Assurez-vous que DiceRoll est accessible (généralement un typealias pour List<Int>)
-// typealias DiceRoll = List<Int> // Si ce n'est pas déjà défini ailleurs et importé
-
+/**
+ * Encapsulates specific game rules for the Cinq Mille game.
+ * This class primarily defines thresholds and conditions that affect game flow.
+ *
+ * @property openingScoreThreshold The minimum score a player must achieve in a single turn
+ *                                 to "open" their score, allowing them to start accumulating
+ *                                 points in the game. Defaults to 500.
+ */
 class GameRules(
-    val openingScoreThreshold: Int = 500 // Seuil d'ouverture par défaut
+    val openingScoreThreshold: Int = 500
 ) {
 
-    // La méthode calculateScore a été SUPPRIMÉE.
-    // Elle est maintenant dans ScoreCalculator.kt
-
-    // La méthode canScoreFromRoll a été SUPPRIMÉE.
-    // Elle est maintenant dans ScoreCalculator.kt (sous le nom canScore)
-
     /**
-     * Logique pour déterminer si un joueur PEUT relancer après avoir marqué.
-     * Le joueur peut relancer s'il reste des dés non sélectionnés ou si tous les dés du lancer
-     * précédent ont été utilisés pour marquer (ce qui permet de relancer un nouveau set complet).
+     * Determines if a player is allowed to roll again after having scored in their current turn.
+     * A player can roll again if:
+     * 1. There are dice remaining that were not part of the scoring combination.
+     * 2. All dice from the previous roll were used to score (a "full hand" score),
+     *    which allows the player to roll all dice again.
      *
-     * @param diceAvailableForNextRoll Les dés qui restent (non sélectionnés) pour un prochain lancer.
-     * @param allDiceFromPreviousRollScored True si tous les dés du lancer qui vient d'être joué
-     *                                      ont été utilisés pour marquer des points.
-     * @return True si le joueur peut relancer.
+     * @param diceAvailableForNextRoll The dice that were not used for scoring in the last evaluated roll
+     *                                 and are thus available for the next roll.
+     * @param allDiceFromPreviousRollScored True if all dice from the most recent roll were used
+     *                                      to score points, false otherwise.
+     * @return True if the player can roll again, false otherwise.
      */
     fun canRollAfterScoring(diceAvailableForNextRoll: DiceRoll, allDiceFromPreviousRollScored: Boolean): Boolean {
-        // On peut relancer s'il reste des dés, OU si on a utilisé tous les dés (auquel cas on relance un set complet).
         return diceAvailableForNextRoll.isNotEmpty() || allDiceFromPreviousRollScored
     }
 }

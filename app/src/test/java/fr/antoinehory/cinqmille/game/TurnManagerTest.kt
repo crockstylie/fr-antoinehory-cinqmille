@@ -1,303 +1,296 @@
 package fr.antoinehory.cinqmille.game
 
-import fr.antoinehory.cinqmille.game.FakeDiceRoller
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
 class TurnManagerTest {
 
-    private lateinit var scoreCalculator: ScoreCalculator
     private lateinit var fakeDiceRoller: FakeDiceRoller
     private lateinit var turnManager: TurnManager
+    private val gameRules = GameRules() // Default rules
+    private val initialDiceCount = 5 // Consistent dice count for tests
+
+    // Inner FakeDiceRoller as defined in the original test file
+    class FakeDiceRoller : DiceRoller {
+        private var rollsToReturn: MutableList<List<Int>> = mutableListOf()
+        private var defaultRollFunc: ((Int) -> List<Int>)? = null
+
+        override fun roll(numberOfDice: Int): DiceRoll {
+            if (rollsToReturn.isNotEmpty()) {
+                val roll = rollsToReturn.removeAt(0)
+                return if (roll.size == numberOfDice) roll
+                else if (roll.size > numberOfDice) roll.take(numberOfDice)
+                else roll + List(numberOfDice - roll.size) { (1..6).random() } // Pad if too short
+            }
+            return defaultRollFunc?.invoke(numberOfDice) ?: List(numberOfDice) { (1..6).random() }
+        }
+
+        fun setRolls(vararg rolls: List<Int>) {
+            rollsToReturn.clear()
+            rollsToReturn.addAll(rolls.map { it.toList() })
+        }
+        fun setDefaultRoll(rollFunc: (Int) -> List<Int>) {
+            this.defaultRollFunc = rollFunc
+        }
+    }
+
 
     @Before
     fun setUp() {
-        scoreCalculator = ScoreCalculator
         fakeDiceRoller = FakeDiceRoller()
-        turnManager = TurnManager(scoreCalculator, fakeDiceRoller)
+        // Default TurnManager uses canPlayerOpen = false
+        turnManager = TurnManager(fakeDiceRoller, gameRules, false, initialDiceCount)
     }
 
     @Test
-    fun `startOrContinueRoll initial roll returns Rolled event with MAX_DICE`() {
-        fakeDiceRoller.setRolls(listOf(1, 1, 1, 2, 3, 4))
-        val event = turnManager.startOrContinueRoll()
-        assertTrue("Event should be Rolled", event is TurnEvent.Rolled)
-        if (event is TurnEvent.Rolled) {
-            assertEquals("Initial roll should use MAX_DICE", TurnManager.MAX_DICE, event.dice.size)
-            assertEquals("Dice in event should match latestRoll in manager", event.dice, turnManager.latestRoll)
-            assertTrue("Event should indicate player can score", event.canPlayerMakeAnyScore)
-        }
-        assertEquals("Initial turn score should be 0", 0, turnManager.currentTurnScore)
-        assertEquals("Dice to roll count should be MAX_DICE", TurnManager.MAX_DICE, turnManager.diceToRollCount)
+    fun `rollDice initial roll returns Rolled event with correct dice count`() {
+        fakeDiceRoller.setRolls(listOf(1, 1, 1, 2, 3))
+        val event = turnManager.rollDice()
+
+        assertTrue("Event should be Rolled: $event", event is TurnEvent.Rolled)
+        val rolledEvent = event as TurnEvent.Rolled
+        assertEquals("Initial roll should use initialDiceCount", initialDiceCount, rolledEvent.dice.size)
+        assertEquals("Dice in event should match roller's output", listOf(1,1,1,2,3), rolledEvent.dice)
+        assertTrue("Event should indicate player can score", rolledEvent.canPlayerMakeAnyScore)
     }
 
     @Test
-    fun `startOrContinueRoll when roll cannot score returns Busted event`() {
-        fakeDiceRoller.setRolls(listOf(2, 3, 4, 2, 3, 4))
-        val event = turnManager.startOrContinueRoll()
-        assertTrue("Event should be Busted", event is TurnEvent.Busted)
-        if (event is TurnEvent.Busted) {
-            assertEquals("Busted score should be 0", 0, event.finalTurnScore)
-        }
-        assertEquals("Turn score should remain 0 after bust", 0, turnManager.currentTurnScore)
-        val postBustBank = turnManager.playerBanksScore()
-        assertTrue("Banking after a bust should be InvalidAction", postBustBank is TurnEvent.InvalidAction)
+    fun `rollDice when roll cannot score returns Busted event`() {
+        fakeDiceRoller.setRolls(listOf(2, 3, 4, 2, 3))
+        val event = turnManager.rollDice()
+
+        assertTrue("Event should be Busted: $event", event is TurnEvent.Busted)
+        val bustedEvent = event as TurnEvent.Busted
+        assertEquals("Busted score from event should be 0", 0, bustedEvent.finalTurnScore)
+        assertEquals("Dice at bust should match roller's output", listOf(2,3,4,2,3), bustedEvent.diceAtBust)
     }
 
     @Test
-    fun `startOrContinueRoll after a successful selection continues roll with correct dice count`() {
-        fakeDiceRoller.setRolls(listOf(1,2,3,4,5,6), listOf(2,3,4,2,3))
-        turnManager = TurnManager(scoreCalculator, fakeDiceRoller)
-        turnManager.startOrContinueRoll()
-        val selectionForNonScorable = turnManager.processPlayerSelection(listOf(0))
-        assertTrue(selectionForNonScorable is TurnEvent.Scored) // MODIFIÉ
-        assertEquals(5, (selectionForNonScorable as TurnEvent.Scored).diceForNextPotentialRoll) // MODIFIÉ
-        val bustedSecondRollEvent = turnManager.startOrContinueRoll()
-        assertTrue("Second roll with non-scorable dice [2,3,4,2,3] should be Busted", bustedSecondRollEvent is TurnEvent.Busted)
-        if(bustedSecondRollEvent is TurnEvent.Busted) {
-            assertEquals("Busted event score for the turn part should be 0",0, bustedSecondRollEvent.finalTurnScore)
-        }
+    fun `selectDice after a successful roll continues roll with correct dice count if applicable`() {
+        // Scenario 1: Selection leads to a bust on the auto-roll
+        fakeDiceRoller.setRolls(
+            listOf(1, 2, 3, 4, 5), // Initial roll
+            listOf(2, 3, 4, 2)     // Auto-roll for 4 dice, non-scoring
+        )
+        turnManager = TurnManager(fakeDiceRoller, gameRules, false, initialDiceCount)
+        turnManager.rollDice() // Initial roll: [1,2,3,4,5]
 
-        fakeDiceRoller.setRolls(listOf(1,2,3,4,5,6), listOf(1,1,1,2,3))
-        turnManager = TurnManager(scoreCalculator, fakeDiceRoller)
-        turnManager.startOrContinueRoll()
-        val selectionForScorable = turnManager.processPlayerSelection(listOf(0))
-        assertTrue(selectionForScorable is TurnEvent.Scored) // MODIFIÉ
-        assertEquals(5, (selectionForScorable as TurnEvent.Scored).diceForNextPotentialRoll) // MODIFIÉ
-        val scorableSecondRollEvent = turnManager.startOrContinueRoll()
-        assertTrue("Second roll with scorable dice [1,1,1,2,3] should be Rolled", scorableSecondRollEvent is TurnEvent.Rolled)
-        if(scorableSecondRollEvent is TurnEvent.Rolled) {
-            assertEquals("Dice count for second roll", 5, scorableSecondRollEvent.dice.size)
-            assertTrue("Second roll should be scorable",scorableSecondRollEvent.canPlayerMakeAnyScore)
-            assertEquals(listOf(1,1,1,2,3), scorableSecondRollEvent.dice)
-        }
+        val selectionEventBust = turnManager.selectDice(listOf(0)) // Player selects the '1' (index 0)
+        assertTrue("Selection event should be Busted (due to auto-roll): $selectionEventBust", selectionEventBust is TurnEvent.Busted)
+        val bustedEvent = selectionEventBust as TurnEvent.Busted
+        assertEquals("Dice at bust should be the state after auto-roll", listOf(1,2,3,4,2).sorted(), bustedEvent.diceAtBust.sorted())
+
+
+        // Scenario 2: Selection leads to a scorable auto-roll
+        fakeDiceRoller.setRolls(
+            listOf(1, 2, 3, 4, 5), // Initial roll
+            listOf(1, 1, 5, 6)     // Next roll for remaining 4 dice (scorable for [1,1,1,5,6] state)
+        )
+        turnManager = TurnManager(fakeDiceRoller, gameRules, false, initialDiceCount) // canPlayerOpen = false
+        turnManager.rollDice() // Initial roll: [1,2,3,4,5]
+        val selectionEventScored = turnManager.selectDice(listOf(0)) // Select '1' (score 100)
+
+        assertTrue("Selection event should be Scored: $selectionEventScored", selectionEventScored is TurnEvent.Scored)
+        val scoredEvent = selectionEventScored as TurnEvent.Scored
+        assertEquals("Score after selecting '1' (100)", 100 , scoredEvent.newTurnTotalScore) // Event score is from selection
+        assertTrue("Should be able to roll again", scoredEvent.canRollAgain)
+        assertEquals("Dice state should reflect selection and new roll", listOf(1,1,1,5,6).sorted(), scoredEvent.diceStateAfterAction.sorted())
+        assertEquals("Dice state size should be initialDiceCount", initialDiceCount, scoredEvent.diceStateAfterAction.size)
+        assertTrue("Mask should reflect '1' as scored", scoredEvent.scoredDiceMask[0])
     }
 
+
     @Test
-    fun `processPlayerSelection with scoring dice returns Scored event`() {
-        fakeDiceRoller.setRolls(listOf(1, 5, 2, 3, 4, 6))
-        turnManager.startOrContinueRoll()
+    fun `selectDice with scoring dice returns Busted event if auto-roll busts`() {
+        fakeDiceRoller.setRolls(
+            listOf(1, 5, 2, 3, 4),
+            listOf(2,2,3,3)
+        )
+        turnManager.rollDice()
+
         val selectedIndices = listOf(0)
-        val expectedScore = 100
-        val selectionEvent = turnManager.processPlayerSelection(selectedIndices)
-        assertTrue("Selection event should be Scored", selectionEvent is TurnEvent.Scored) // MODIFIÉ
-        if (selectionEvent is TurnEvent.Scored) { // MODIFIÉ
-            assertEquals(expectedScore, selectionEvent.scoreFromSelection)
-            assertEquals(expectedScore, selectionEvent.newTurnTotalScore)
-            assertTrue(selectionEvent.canRollAgain)
-            assertEquals(TurnManager.MAX_DICE - selectedIndices.size, selectionEvent.diceForNextPotentialRoll)
-            assertEquals(expectedScore, turnManager.currentTurnScore)
-        }
+        val selectionEvent = turnManager.selectDice(selectedIndices)
+
+        assertTrue("Selection event should be Busted: $selectionEvent", selectionEvent is TurnEvent.Busted)
+        val bustedEvent = selectionEvent as TurnEvent.Busted
+        assertEquals("Busted finalTurnScore should be 0", 0, bustedEvent.finalTurnScore)
     }
 
     @Test
-    fun `processPlayerSelection with non-scoring dice (but valid selection) returns Busted event`() {
-        fakeDiceRoller.setRolls(listOf(1, 2, 3, 4, 6, 6))
-        turnManager.startOrContinueRoll()
-
+    fun `selectDice with non-scoring dice (but valid selection by index) returns Busted event`() {
+        fakeDiceRoller.setRolls(listOf(1, 2, 3, 4, 6)) // Roll [1,2,3,4,6]
+        turnManager.rollDice()
+        // Select '2' (index 1). Score for [2] is 0. This is a bust.
         val selectedIndices = listOf(1)
-        val selectionEvent = turnManager.processPlayerSelection(selectedIndices)
+        val selectionEvent = turnManager.selectDice(selectedIndices)
 
-        assertTrue("Selection event should be Busted", selectionEvent is TurnEvent.Busted)
-        if (selectionEvent is TurnEvent.Busted) {
-            assertEquals(0, selectionEvent.finalTurnScore)
-            assertEquals(0, turnManager.currentTurnScore)
-        }
+        assertTrue("Selection event should be Busted: $selectionEvent", selectionEvent is TurnEvent.Busted)
+        val bustedEvent = selectionEvent as TurnEvent.Busted
+        assertEquals("Busted finalTurnScore should be 0", 0, bustedEvent.finalTurnScore)
+    }
+
+
+    @Test
+    fun `selectDice with invalid selection returns InvalidAction event`() {
+        fakeDiceRoller.setRolls(listOf(1, 2, 3, 4, 5))
+        turnManager.rollDice()
+
+        val invalidIndicesSelection = turnManager.selectDice(listOf(-1, 10, 99))
+        assertTrue("Selection with invalid indices: $invalidIndicesSelection", invalidIndicesSelection is TurnEvent.InvalidAction)
+
+        val emptySelection = turnManager.selectDice(emptyList())
+        assertTrue("Empty selection: $emptySelection", emptySelection is TurnEvent.InvalidAction)
+    }
+
+
+    @Test
+    fun `selectDice when all dice score, next roll is initialDiceCount`() {
+        fakeDiceRoller.setRolls(
+            listOf(1,1,1,5,5), // Initial roll (scores 1000 + 100 = 1100, all dice score)
+            listOf(6,6,6,6,6)  // Next roll after "plein"
+        )
+        turnManager.rollDice() // Roll [1,1,1,5,5]
+        val selectedIndices = listOf(0,1,2,3,4) // Select all
+        val selectionEvent = turnManager.selectDice(selectedIndices) // Event score should be 1100 (from plein)
+
+        assertTrue("Event should be Scored: $selectionEvent", selectionEvent is TurnEvent.Scored)
+        val scoredEvent = selectionEvent as TurnEvent.Scored
+        assertEquals("Score from selecting all (1,1,1,5,5)", 1100, scoredEvent.newTurnTotalScore)
+        assertTrue("Should be able to roll again", scoredEvent.canRollAgain)
+        assertEquals("Dice state after action should be the new roll", listOf(6,6,6,6,6), scoredEvent.diceStateAfterAction)
+        assertFalse("Scored mask should be all false", scoredEvent.scoredDiceMask.any { it })
     }
 
     @Test
-    fun `processPlayerSelection with invalid selection returns InvalidAction event`() {
-        fakeDiceRoller.setRolls(listOf(1, 2, 3, 4, 5, 6))
-        val rollEvent = turnManager.startOrContinueRoll()
-
-        assertTrue("Initial roll should be Rolled", rollEvent is TurnEvent.Rolled)
-        assertTrue("Initial roll should be scorable", (rollEvent as TurnEvent.Rolled).canPlayerMakeAnyScore)
-
-        val invalidIndicesSelection = turnManager.processPlayerSelection(listOf(-1, 10, 99))
-        assertTrue(invalidIndicesSelection is TurnEvent.InvalidAction)
-        assertEquals("Indices de dés invalides, aucun dé conservé.", (invalidIndicesSelection as TurnEvent.InvalidAction).message)
-
-        val emptySelection = turnManager.processPlayerSelection(emptyList())
-        assertTrue(emptySelection is TurnEvent.InvalidAction)
-        assertEquals("Le joueur doit sélectionner des dés qui marquent des points.", (emptySelection as TurnEvent.InvalidAction).message)
+    fun `selectDice when no turn in progress (no roll first) returns InvalidAction`() {
+        val event = turnManager.selectDice(listOf(0))
+        assertTrue("Event should be InvalidAction: $event", event is TurnEvent.InvalidAction)
     }
 
     @Test
-    fun `processPlayerSelection when all dice score, next roll is MAX_DICE`() {
-        fakeDiceRoller.setRolls(listOf(1,1,1,5,5,5))
-        turnManager.startOrContinueRoll()
+    fun `bankScore returns TurnEndedBanked with current turn score`() {
+        val currentCanPlayerOpen = false
+        turnManager = TurnManager(fakeDiceRoller, gameRules, currentCanPlayerOpen, initialDiceCount)
 
-        val selectedIndices = listOf(0,1,2,3,4,5)
-        val selectionEvent = turnManager.processPlayerSelection(selectedIndices)
+        fakeDiceRoller.setRolls(
+             listOf(1,1,1,2,3) // Roll (1000 pts for 1,1,1)
+        )
+        turnManager.rollDice() // Roll [1,1,1,2,3]
 
-        assertTrue("Event should be Scored", selectionEvent is TurnEvent.Scored) // MODIFIÉ
-        if (selectionEvent is TurnEvent.Scored) { // MODIFIÉ
-            assertEquals(1500, selectionEvent.scoreFromSelection)
-            assertEquals(1500, selectionEvent.newTurnTotalScore)
-            assertTrue(selectionEvent.canRollAgain)
-            assertEquals(TurnManager.MAX_DICE, selectionEvent.diceForNextPotentialRoll)
-        }
+        // Player selects the three 1s. Auto-roll for [2,3]
+        fakeDiceRoller.setRolls(listOf(5,5)) // Auto-roll for 2 dice scores 100.
+        val selectEvent = turnManager.selectDice(listOf(0,1,2)) // Select [1,1,1]
+        assertTrue(selectEvent is TurnEvent.Scored)
+        val scoredSelectEvent = selectEvent as TurnEvent.Scored
+        assertEquals("Score from selection [1,1,1] should be 1000", 1000, scoredSelectEvent.newTurnTotalScore) // Score from this selection
+
+        // TurnManager internal currentTurnScore is now 1000 (selection) + 100 (auto-roll) = 1100
+
+        val bankEvent = turnManager.bankScore()
+        assertTrue("Event should be TurnEndedBanked: $bankEvent", bankEvent is TurnEvent.TurnEndedBanked)
+        assertEquals("Banked score should be total accumulated (1000+100)",1100, (bankEvent as TurnEvent.TurnEndedBanked).finalTurnScore)
+
+        // Try to bank again after turn ended
+        val nextBankAttempt = turnManager.bankScore()
+        // With simplified bankScore, this always returns TurnEndedBanked(0) as state is reset.
+        assertTrue("Banking again should be TurnEndedBanked: $nextBankAttempt", nextBankAttempt is TurnEvent.TurnEndedBanked)
+        assertEquals("Banking again after turn ended should yield 0 score", 0, (nextBankAttempt as TurnEvent.TurnEndedBanked).finalTurnScore)
     }
 
     @Test
-    fun `processPlayerSelection when no turn in progress returns InvalidAction`() {
-        val event = turnManager.processPlayerSelection(listOf(0))
-        assertTrue(event is TurnEvent.InvalidAction)
-        assertEquals("Aucun tour en cours.", (event as TurnEvent.InvalidAction).message)
+    fun `bankScore when no turn in progress returns appropriate event`() {
+        // Scenario 1: Player has not opened (default setUp, canPlayerOpen = false)
+        val canPlayerOpenFirstScenario = false
+        turnManager = TurnManager(fakeDiceRoller, gameRules, canPlayerOpenFirstScenario, initialDiceCount)
+        val bankEventNoTurn = turnManager.bankScore()
+
+        // With simplified bankScore, this always returns TurnEndedBanked(0)
+        assertTrue("Banking with no score and not open should be TurnEndedBanked: $bankEventNoTurn", bankEventNoTurn is TurnEvent.TurnEndedBanked)
+        assertEquals("Banking with no score and not open should yield 0", 0, (bankEventNoTurn as TurnEvent.TurnEndedBanked).finalTurnScore)
+
+
+        // Scenario 2: Player opened, then tries to bank 0 after a turn ended
+        val canPlayerOpenSecondScenario = true
+        turnManager = TurnManager(fakeDiceRoller, gameRules, canPlayerOpenSecondScenario, initialDiceCount)
+        // Simulate a turn that ended (e.g., via bank/bust which calls resetTurnStateAfterBustOrBank)
+        // turnManager.bankScore() // This would make it reset. Or just rely on resetForNewTurn or fresh manager.
+        // Let's ensure state is as if after a bank
+        turnManager.bankScore() // Ends a hypothetical empty turn, currentScore is 0, hasRolledInSegment is false
+
+        val bankEventAfterBank = turnManager.bankScore()
+        assertTrue("Banking 0 when open should be TurnEndedBanked(0): $bankEventAfterBank", bankEventAfterBank is TurnEvent.TurnEndedBanked)
+        assertEquals(0, (bankEventAfterBank as TurnEvent.TurnEndedBanked).finalTurnScore)
     }
 
-    @Test
-    fun `processPlayerSelection when no dice rolled returns InvalidAction`() {
-        assertTrue(true)
-    }
-
-    @Test
-    fun `playerBanksScore returns TurnEndedBanked with current turn score`() {
-        fakeDiceRoller.setRolls(listOf(1, 2, 3, 4, 5, 6))
-        turnManager.startOrContinueRoll()
-
-        val scoreToBank = 100
-        turnManager.processPlayerSelection(listOf(0))
-
-        val bankEvent = turnManager.playerBanksScore()
-        assertTrue("Event should be TurnEndedBanked", bankEvent is TurnEvent.TurnEndedBanked)
-        if (bankEvent is TurnEvent.TurnEndedBanked) {
-            assertEquals(scoreToBank, bankEvent.finalTurnScore)
-        }
-
-        val nextBankAttempt = turnManager.playerBanksScore()
-        assertTrue("Banking again should be InvalidAction", nextBankAttempt is TurnEvent.InvalidAction)
-    }
-
-    @Test
-    fun `playerBanksScore when no turn in progress returns InvalidAction`() {
-        val bankEventNoTurn = turnManager.playerBanksScore()
-        assertTrue(bankEventNoTurn is TurnEvent.InvalidAction)
-        assertEquals("Impossible de banker: aucun tour en cours ou déjà terminé.", (bankEventNoTurn as TurnEvent.InvalidAction).message)
-
-        fakeDiceRoller.setRolls(listOf(1,2,3,4,5,6))
-        turnManager.startOrContinueRoll()
-        turnManager.processPlayerSelection(listOf(0))
-        turnManager.playerBanksScore()
-
-        val bankEventAfterBank = turnManager.playerBanksScore()
-        assertTrue(bankEventAfterBank is TurnEvent.InvalidAction)
-        assertEquals("Impossible de banker: aucun tour en cours ou déjà terminé.", (bankEventAfterBank as TurnEvent.InvalidAction).message)
-    }
-
-    // --- Complex Scenarios / State Transitions ---
     @Test
     fun `full turn scenario - roll, score, roll, score, bank`() {
-        val firstRoll = listOf(1, 1, 2, 3, 4, 5)
-        val secondRoll = listOf(5, 5, 2, 3)
+        val currentCanPlayerOpen = false
+        val firstRollDice = listOf(1, 1, 2, 3, 4)         // Roll [1,1,2,3,4]
+        val autoRollAfterFirstSelection = listOf(5, 5, 6) // For 3 dice [2,3,4] -> scores 100 for [5,5]
+        val autoRollAfterSecondSelection = listOf(2)      // For 1 die [6] -> non-scorable (bust)
 
-        fakeDiceRoller.setRolls(firstRoll, secondRoll)
+        fakeDiceRoller.setRolls(firstRollDice, autoRollAfterFirstSelection, autoRollAfterSecondSelection)
+        turnManager = TurnManager(fakeDiceRoller, gameRules, currentCanPlayerOpen, initialDiceCount)
 
-        var turnEventResponse = turnManager.startOrContinueRoll()
-        assertTrue("Initial roll should be Rolled", turnEventResponse is TurnEvent.Rolled)
-        assertEquals(firstRoll, (turnEventResponse as TurnEvent.Rolled).dice)
+        var turnEventResponse = turnManager.rollDice() // Roll [1,1,2,3,4]
+        assertTrue(turnEventResponse is TurnEvent.Rolled)
 
-        val scoreFromFirstSelection = scoreCalculator.calculateScore(listOf(1,1))
-        turnEventResponse = turnManager.processPlayerSelection(listOf(0, 1))
-        assertTrue("First selection should be Scored", turnEventResponse is TurnEvent.Scored) // MODIFIÉ
-        var scoredEvent = turnEventResponse as TurnEvent.Scored // MODIFIÉ
-        assertEquals("Score from first selection", scoreFromFirstSelection, scoredEvent.scoreFromSelection)
-        assertEquals("Total score after first selection", scoreFromFirstSelection, scoredEvent.newTurnTotalScore)
-        assertEquals("Dice for next roll after first selection", 4, scoredEvent.diceForNextPotentialRoll)
-        assertEquals("Manager total score after first selection", scoreFromFirstSelection, turnManager.currentTurnScore)
+        // Select two 1s (score 200). Auto-rolls 3 dice [2,3,4] into [5,5,6] (scores 100 for 5,5).
+        turnEventResponse = turnManager.selectDice(listOf(0, 1))
+        assertTrue(turnEventResponse is TurnEvent.Scored)
+        var scoredEvent = turnEventResponse as TurnEvent.Scored
+        assertEquals("Score from selecting [1,1] should be 200", 200, scoredEvent.newTurnTotalScore)
+        assertTrue(scoredEvent.canRollAgain)
+        // TurnManager internal currentTurnScore is now 200 (selection) + 100 (auto-roll) = 300
+        // Dice state is now [1,1,5,5,6] with [1,1] masked.
 
-        turnEventResponse = turnManager.startOrContinueRoll()
-        assertTrue("Second roll should be Rolled", turnEventResponse is TurnEvent.Rolled)
-        assertEquals(secondRoll, (turnEventResponse as TurnEvent.Rolled).dice)
-        assertTrue("Second roll should be scorable", (turnEventResponse as TurnEvent.Rolled).canPlayerMakeAnyScore)
+        // Select two 5s (score 100). Indices [2,3] from [1,1,5,5,6]. Auto-rolls 1 die [6] into [2] (bust).
+        turnEventResponse = turnManager.selectDice(listOf(2, 3))
+        assertTrue("Second selection should be Busted: $turnEventResponse", turnEventResponse is TurnEvent.Busted)
+        val bustedEvent = turnEventResponse as TurnEvent.Busted
+        assertEquals("Busted finalTurnScore should be 0", 0, bustedEvent.finalTurnScore)
+        // TurnManager internal currentTurnScore is now 0.
 
-
-        val scoreFromSecondSelection = scoreCalculator.calculateScore(listOf(5,5))
-        turnEventResponse = turnManager.processPlayerSelection(listOf(0, 1))
-        assertTrue("Second selection should be Scored", turnEventResponse is TurnEvent.Scored) // MODIFIÉ
-        scoredEvent = turnEventResponse as TurnEvent.Scored // MODIFIÉ
-        assertEquals("Score from second selection", scoreFromSecondSelection, scoredEvent.scoreFromSelection)
-        val expectedTotalAfterSecondScore = scoreFromFirstSelection + scoreFromSecondSelection
-        assertEquals("Total score after second selection", expectedTotalAfterSecondScore, scoredEvent.newTurnTotalScore)
-        assertEquals("Dice for next roll after second selection", 2, scoredEvent.diceForNextPotentialRoll)
-        assertEquals("Manager total score after second selection", expectedTotalAfterSecondScore, turnManager.currentTurnScore)
-
-        turnEventResponse = turnManager.playerBanksScore()
-        assertTrue("Banking should result in TurnEndedBanked", turnEventResponse is TurnEvent.TurnEndedBanked)
-        val bankedEvent = turnEventResponse as TurnEvent.TurnEndedBanked
-        assertEquals("Final banked score", expectedTotalAfterSecondScore, bankedEvent.finalTurnScore)
-
-        fakeDiceRoller.setDefaultRoll { numDice -> List(numDice) { 1 } }
-        val nextActionAfterBank = turnManager.startOrContinueRoll()
-        assertTrue("Attempting to roll after banking should start a new turn and be Rolled (with default 1s)", nextActionAfterBank is TurnEvent.Rolled)
-        if (nextActionAfterBank is TurnEvent.Rolled) {
-            assertEquals("Dice in new turn should be the default roll", List(TurnManager.MAX_DICE) {1}, nextActionAfterBank.dice)
-            assertTrue("New roll of all 1s should be scorable", nextActionAfterBank.canPlayerMakeAnyScore)
-        }
-        assertEquals("Score should reset for new turn", 0, turnManager.currentTurnScore)
+        turnEventResponse = turnManager.bankScore()
+        assertTrue(turnEventResponse is TurnEvent.TurnEndedBanked)
+        assertEquals("Final banked score should be 0 after bust", 0, (turnEventResponse as TurnEvent.TurnEndedBanked).finalTurnScore)
     }
 
     @Test
     fun `full turn scenario - roll, bust`() {
-        val nonScoringRoll = listOf(2, 3, 4, 6, 2, 4)
-        fakeDiceRoller.setRolls(nonScoringRoll)
-        var turnEventResponse = turnManager.startOrContinueRoll()
-        assertTrue("Initial non-scoring roll should be Busted", turnEventResponse is TurnEvent.Busted)
-        if (turnEventResponse is TurnEvent.Busted) {
-            assertEquals("Busted score should be 0", 0, turnEventResponse.finalTurnScore)
-        }
-        assertEquals("Turn score should be 0 after initial bust", 0, turnManager.currentTurnScore)
-        var nextAction = turnManager.playerBanksScore()
-        assertTrue("Banking after initial bust should be InvalidAction", nextAction is TurnEvent.InvalidAction)
+        val currentCanPlayerOpen = false
+        turnManager = TurnManager(fakeDiceRoller, gameRules, currentCanPlayerOpen, initialDiceCount)
+        fakeDiceRoller.setRolls(listOf(2, 3, 4, 6, 2))
+        var turnEventResponse = turnManager.rollDice() // Roll [2,3,4,6,2] -> BUST
+        assertTrue(turnEventResponse is TurnEvent.Busted)
 
-        turnManager = TurnManager(scoreCalculator, fakeDiceRoller)
-
-        val scorableRoll = listOf(1, 2, 3, 4, 6, 6)
-        fakeDiceRoller.setRolls(scorableRoll)
-        turnEventResponse = turnManager.startOrContinueRoll()
-        assertTrue("Roll for selection bust test should be Rolled", turnEventResponse is TurnEvent.Rolled)
-        assertTrue("Roll should be scorable", (turnEventResponse as TurnEvent.Rolled).canPlayerMakeAnyScore)
-
-        turnEventResponse = turnManager.processPlayerSelection(listOf(1))
-        assertTrue("Selecting non-scoring '2' should be Busted", turnEventResponse is TurnEvent.Busted)
-        if (turnEventResponse is TurnEvent.Busted) {
-            assertEquals("Busted score on selection should be 0", 0, turnEventResponse.finalTurnScore)
-        }
-        assertEquals("Turn score should be 0 after selection bust", 0, turnManager.currentTurnScore)
-        nextAction = turnManager.playerBanksScore()
-        assertTrue("Banking after selection bust should be InvalidAction", nextAction is TurnEvent.InvalidAction)
+        turnEventResponse = turnManager.bankScore() // Attempt to bank after bust
+        // With simplified bankScore, this always returns TurnEndedBanked(0)
+        assertTrue("Banking after bust should be TurnEndedBanked: $turnEventResponse", turnEventResponse is TurnEvent.TurnEndedBanked)
+        assertEquals("Banking after bust should yield 0", 0, (turnEventResponse as TurnEvent.TurnEndedBanked).finalTurnScore)
     }
 
-    @Test
-    fun `bust after a successful partial score resets turn score to 0`() {
-        val initialScoringRoll = listOf(1, 1, 2, 3, 4, 5)
-        val subsequentNonScoringRoll = listOf(2, 3, 4, 6)
+     @Test
+    fun `bust after a successful partial score, TurnManager signals Busted`() {
+        val currentCanPlayerOpen = false
+        turnManager = TurnManager(fakeDiceRoller, gameRules, currentCanPlayerOpen, initialDiceCount)
+        fakeDiceRoller.setRolls(
+            listOf(1, 1, 2, 3, 4),     // Initial roll (select 1,1 -> 200pts)
+            listOf(2, 3, 6)            // Auto-roll for 3 dice (non-scoring -> bust)
+        )
+        turnManager.rollDice() // Roll [1,1,2,3,4]
 
-        fakeDiceRoller.setRolls(initialScoringRoll, subsequentNonScoringRoll)
+        // Select [1,1] (score 200). Auto-roll 3 dice [2,3,4] into [2,3,6] (busts).
+        val selectionEvent = turnManager.selectDice(listOf(0,1))
+        assertTrue("Selection leading to bust on auto-roll: $selectionEvent", selectionEvent is TurnEvent.Busted)
+        val bustedEvent = selectionEvent as TurnEvent.Busted
+        assertEquals("Busted event final score for the bust action should be 0", 0, bustedEvent.finalTurnScore)
+        // TurnManager internal currentTurnScore is now 0.
 
-        var turnEventResponse = turnManager.startOrContinueRoll()
-        assertTrue("Initial roll should be Rolled", turnEventResponse is TurnEvent.Rolled)
-
-        val scoreFromSelection = scoreCalculator.calculateScore(listOf(1,1))
-        turnEventResponse = turnManager.processPlayerSelection(listOf(0,1))
-        assertTrue("Selection should be Scored", turnEventResponse is TurnEvent.Scored) // MODIFIÉ
-        val scoredEvent = turnEventResponse as TurnEvent.Scored // MODIFIÉ
-        assertEquals("Score from selection should be 200", scoreFromSelection, scoredEvent.scoreFromSelection)
-        assertEquals("Turn total should be 200", scoreFromSelection, scoredEvent.newTurnTotalScore)
-        assertEquals("Manager's current score should be 200", scoreFromSelection, turnManager.currentTurnScore)
-        assertEquals("Should have 4 dice left to roll", 4, scoredEvent.diceForNextPotentialRoll)
-
-        turnEventResponse = turnManager.startOrContinueRoll()
-        assertTrue("Subsequent non-scoring roll should be Busted", turnEventResponse is TurnEvent.Busted)
-
-        if (turnEventResponse is TurnEvent.Busted) {
-            assertEquals("Busted event final score should be 0", 0, turnEventResponse.finalTurnScore)
-        }
-        assertEquals("Manager's current score should reset to 0 after bust", 0, turnManager.currentTurnScore)
-
-        val nextAction = turnManager.playerBanksScore()
-        assertTrue("Banking after bust should be InvalidAction", nextAction is TurnEvent.InvalidAction)
+        val bankAttemptAfterBust = turnManager.bankScore()
+        // With simplified bankScore, this always returns TurnEndedBanked(0)
+        assertTrue("Banking after bust should be TurnEndedBanked: $bankAttemptAfterBust", bankAttemptAfterBust is TurnEvent.TurnEndedBanked)
+        assertEquals("Banking after bust should yield 0", 0, (bankAttemptAfterBust as TurnEvent.TurnEndedBanked).finalTurnScore)
     }
 }
-

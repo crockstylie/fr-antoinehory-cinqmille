@@ -1,7 +1,5 @@
 package fr.antoinehory.cinqmille.game
 
-// DiceRoll est défini dans DiceRollUtils.kt
-
 /**
  * Represents events that occur within a single player's turn, managed by [TurnManager].
  * These events detail the outcomes of player actions like rolling or selecting dice.
@@ -33,7 +31,7 @@ sealed class TurnEvent {
     data class Scored(
         val newTurnTotalScore: Int,
         val diceStateAfterAction: DiceRoll,
-        val scoredDiceMask: List<Boolean>, // Masque pour les dés dans diceStateAfterAction
+        val scoredDiceMask: List<Boolean>, // Mask for the dice in diceStateAfterAction
         val canRollAgain: Boolean
     ) : TurnEvent()
 
@@ -42,18 +40,17 @@ sealed class TurnEvent {
      * The player's current turn score is typically reset to 0 for the turn.
      * @param diceAtBust The [DiceRoll] (values of the dice) that caused the bust and should be displayed.
      * @param finalTurnScore The score of the turn when it busted. Per game rules, this is 0 for the turn.
-     *                       The default value is 0.
+     *                       Defaults to 0.
      */
     data class Busted(
         val diceAtBust: DiceRoll,
-        val finalTurnScore: Int = 0 // Le score d'un bust est toujours 0 pour le tour.
+        val finalTurnScore: Int = 0 // The score of a bust is always 0 for the turn.
     ) : TurnEvent()
 
     /**
      * Indicates that the player has successfully banked their score for the turn.
      * The turn ends.
      * @param finalTurnScore The total score banked by the player in this turn.
-     * @param newTotalPlayerScore The player's new total score after banking.
      */
     data class TurnEndedBanked(
         val finalTurnScore: Int

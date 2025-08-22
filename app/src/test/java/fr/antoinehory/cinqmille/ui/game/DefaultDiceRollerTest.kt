@@ -33,14 +33,14 @@ class DefaultDiceRollerTest {
     }
 
     @Test
-    fun `roll with MAX_DICE returns correct size`() {
-        // Assuming TurnManager.MAX_DICE is accessible or we use a known value like 5 or 6
-        // For now, let's use a common value used in tests, e.g. 5
-        val maxDice = 5 // Or TurnManager.MAX_DICE if directly accessible and stable for test
-        val rollResult = diceRoller.roll(maxDice)
+    fun `roll with MAX_DICE returns correct size`() { // Test name kept for consistency with original
+        // Test rolling a common number of dice, e.g., 5.
+        // DefaultDiceRoller itself is not aware of a specific MAX_DICE constant from other game components.
+        val numberOfDiceToTest = 5
+        val rollResult = diceRoller.roll(numberOfDiceToTest)
         Assert.assertEquals(
-            "Roll result for MAX_DICE should have $maxDice dice.",
-            maxDice,
+            "Roll result for $numberOfDiceToTest dice should have $numberOfDiceToTest dice.",
+            numberOfDiceToTest,
             rollResult.size
         )
         rollResult.forEach { dieValue ->
@@ -84,12 +84,8 @@ class DefaultDiceRollerTest {
         val roll3 = diceRoller.roll(5)
 
         // It's highly unlikely all three full rolls are identical if random.
-        // A simpler check: it's unlikely roll1 == roll2 AND roll2 == roll3
-        // unless Random is seeded or broken.
-        // For a more robust test, one might check statistical distribution over many rolls,
-        // but for a simple dice roller, just checking for non-identical results is usually sufficient.
         Assert.assertFalse(
-            "Multiple rolls of 5 dice are expected to differ (statistically). Roll1: $roll1, Roll2: $roll2",
+            "Multiple rolls of 5 dice are expected to differ (statistically). Roll1: $roll1, Roll2: $roll2, Roll3: $roll3",
             roll1 == roll2 && roll2 == roll3 && roll1.size == 5
         )
     }

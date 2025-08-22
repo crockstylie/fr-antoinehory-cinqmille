@@ -1,8 +1,5 @@
 package fr.antoinehory.cinqmille.ui.game
 
-// Consider if import fr.antoinehory.cinqmille.game.Player is needed or if this UI state is fully self-contained.
-// If Player domain model is used to construct or map to PlayerUiState, it might be relevant.
-
 /**
  * Represents the UI-specific state for a single player.
  * This is a subset of the domain model `Player` (from fr.antoinehory.cinqmille.game.Player), 

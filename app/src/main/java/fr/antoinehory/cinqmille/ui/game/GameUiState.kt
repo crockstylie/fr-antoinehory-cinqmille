@@ -1,9 +1,5 @@
 package fr.antoinehory.cinqmille.ui.game
 
-// PlayerUiState should be defined in its own file (PlayerUiState.kt) in this package
-// and imported if necessary, though direct usage here might just be for KDoc.
-// e.g., import fr.antoinehory.cinqmille.ui.game.PlayerUiState
-
 /**
  * Represents the complete state of the game screen's UI at a given moment.
  * This data class is used by the `GameViewModel` to expose observable state
@@ -14,7 +10,8 @@ package fr.antoinehory.cinqmille.ui.game
  * @property currentMessage A message to display to the user (e.g., instructions, game events).
  * @property currentDiceRoll The list of dice values from the most recent roll. An empty list if no roll has occurred.
  * @property accumulatedTurnScore The score accumulated by the current player from validated dice selections within the current turn.
- * @property previewSelectionScore The potential score from the dice currently visually selected by the player, but not yet validated.
+ * @property previewSelectionScore The potential score from the dice currently visually selected by the player,
+ *                                 but not yet validated. Used for live score preview.
  * @property isRollButtonEnabled True if the "Roll Dice" button should be enabled, false otherwise.
  * @property isBankButtonEnabled True if the "Bank Score" button should be enabled, false otherwise.
  * @property selectedDiceIndices DEPRECATED. Use [selectedDiceVisual] for UI interaction.
@@ -29,8 +26,8 @@ data class GameUiState(
     val currentPlayerId: Int? = null,
     val currentMessage: String = "Bienvenue au Cinq Mille ! Choisissez le nombre de joueurs pour commencer.",
     val currentDiceRoll: List<Int> = emptyList(),
-    val accumulatedTurnScore: Int = 0, // RENAMED from currentTurnScore
-    val previewSelectionScore: Int = 0, // ADDED for live score preview
+    val accumulatedTurnScore: Int = 0,
+    val previewSelectionScore: Int = 0,
     val isRollButtonEnabled: Boolean = false,
     val isBankButtonEnabled: Boolean = false,
     @Deprecated(
@@ -50,13 +47,3 @@ data class GameUiState(
         const val INITIAL_DICE_COUNT = 5
     }
 }
-
-// Assurez-vous que PlayerUiState.kt contient quelque chose comme :
-// package fr.antoinehory.cinqmille.ui.game
-//
-// data class PlayerUiState(
-//     val id: Int,
-//     val totalScore: Int,
-//     val hasOpened: Boolean,
-//     val isCurrentPlayer: Boolean
-// )
